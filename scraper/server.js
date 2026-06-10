@@ -9,7 +9,9 @@ const http = require("http");
 const { chromium } = require("playwright");
 
 const PORT = Number(process.env.PORT || 3001);
-const TOKEN = process.env.SCRAPER_TOKEN || "";
+// Trimmed so a stray newline/space in the host's env var (a very common
+// copy-paste artifact) doesn't silently reject every request.
+const TOKEN = (process.env.SCRAPER_TOKEN || "").trim();
 const UA =
   "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36";
 
@@ -71,7 +73,7 @@ const server = http.createServer((req, res) => {
   if (req.method === "GET" && req.url === "/health") return json(200, { ok: true });
 
   if (req.method === "POST" && req.url.startsWith("/reddit")) {
-    if (TOKEN && req.headers.authorization !== `Bearer ${TOKEN}`) {
+    if (TOKEN && (req.headers.authorization || "").trim() !== `Bearer ${TOKEN}`) {
       return json(401, { error: "unauthorized" });
     }
     let body = "";
