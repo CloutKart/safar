@@ -1,0 +1,14 @@
+{
+  "name": "safar-gem-scraper",
+  "version": "1.0.0",
+  "private": true,
+  "type": "commonjs",
+  "description": "Playwright-backed Reddit gem scraper for Safar (browser-context fetch of old.reddit.com JSON).",
+  "scripts": {
+    "start": "node server.js",
+    "postinstall": "playwright install chromium"
+  },
+  "dependencies": {
+    "playwright": "^1.49.1"
+  }
+}
