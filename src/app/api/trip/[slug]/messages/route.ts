@@ -5,6 +5,10 @@ import { processNormalizedEvent } from "@/lib/conversation/engine";
 import { publishRoomEvent } from "@/lib/realtime/bus";
 import { getStore } from "@/lib/store";
 
+// Approving a summary triggers plan generation (LLM + live hotels + gems for
+// three destinations), which can run well past the serverless default of 10s.
+export const maxDuration = 60;
+
 const MessageSchema = z.object({
   participantId: z.string().min(1),
   displayName: z.string().trim().min(1).max(40).nullable().default(null),

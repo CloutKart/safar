@@ -3,6 +3,8 @@ import { z } from "zod";
 import { getGems } from "@/lib/research/gems";
 
 export const dynamic = "force-dynamic";
+// Aggregates Google Places + Atlas + the Reddit scraper (+ LLM extraction).
+export const maxDuration = 60;
 
 const Schema = z.object({ city: z.string().trim().min(2).max(80) });
 

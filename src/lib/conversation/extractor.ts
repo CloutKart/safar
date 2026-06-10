@@ -28,10 +28,20 @@ const interestAliases: Record<InterestTag, string[]> = {
 };
 
 const firstPersonPattern =
-  /\b(i|i'm|i am|i'd|me|my|we|our|main|mai|mujhe|mujhko|mera|meri|hum|humein|apna)\b/i;
+  /\b(i|i'm|i am|i'd|me|my|we|our|us|let'?s|main|mai|mujhe|mujhko|mera|meri|hum|humein|apna|apne|chaahiye)\b/i;
+// Expressed-preference verbs/markers — people rarely say "I" in casual chat
+// ("love beaches", "want cafes", "into trekking", "beach chahiye").
+const preferenceMarker =
+  /\b(love|loved|loves|loving|want|wanna|wanted|wish|prefer|prefers|like|likes|liking|enjoy|enjoys|fan of|into|keen|interested|looking for|hoping for|down for|up for|in the mood|mood for|excited for|chahiye|chahta|chahte|chah|pasand|mann|sochna)\b/i;
 const negativePattern =
-  /\b(no|not|don't|dont|hate|avoid|nahi|nahin|mat|pasand nahi|bilkul nahi)\b/i;
+  /\b(no|not|don't|dont|hate|hates|avoid|skip|nope|nahi|nahin|mat|pasand nahi|bilkul nahi)\b/i;
 const jokePattern = /\b(jk|joking|mazak|mazaak|lol kidding|just kidding)\b/i;
+// A statement about someone else: a pronoun, or "Name likes/wants ..." — these
+// must not be attributed to the speaker.
+const thirdPersonPattern =
+  /\b(he|she|they|him|her|them|his|hers|their|theirs|uska|uski|unka|unke|unko)\b/i;
+const thirdPersonSubjectPattern =
+  /\b[A-Z][a-z]+\s+(?:loves?|likes?|wants?|prefers?|enjoys?|hates?|is into|are into)\b/;
 
 function detectLanguage(text: string): MessageExtraction["language"] {
   if (/[\u0900-\u097F]/.test(text)) return "hi";
@@ -125,25 +135,44 @@ function extractOrigin(text: string): MessageExtraction["facts"] {
 }
 
 function extractPreferences(text: string): MessageExtraction["preferences"] {
-  const directFirstPerson = firstPersonPattern.test(text);
-  if (!directFirstPerson) return [];
-
   const lower = text.toLowerCase();
   const matches = interestTags.filter((tag) =>
     interestAliases[tag].some((alias) => lower.includes(alias)),
   );
+  if (matches.length === 0) return [];
+
+  const hasFirstPerson = firstPersonPattern.test(text);
+  // "Rohan loves haunted places" / "she wants beaches" → about someone else.
+  const aboutSomeoneElse =
+    !hasFirstPerson &&
+    (thirdPersonPattern.test(text) || thirdPersonSubjectPattern.test(text));
+  if (aboutSomeoneElse) return [];
+
+  const hasPreferenceVerb = preferenceMarker.test(text);
+  const wordCount = text.trim().split(/\s+/).filter(Boolean).length;
+  // A short, interest-led phrase ("beach shacks, sunsets, seafood") is the
+  // speaker listing what they want — even without a pronoun or verb.
+  const shortInterestList = wordCount <= 10 && !text.includes("?");
+  if (!hasFirstPerson && !hasPreferenceVerb && !shortInterestList) return [];
+
+  const confidence = hasFirstPerson ? 0.82 : hasPreferenceVerb ? 0.74 : 0.62;
 
   return matches.map((tag) => {
     const alias = interestAliases[tag].find((candidate) =>
       lower.includes(candidate),
     );
     const index = alias ? lower.indexOf(alias) : 0;
-    const nearby = lower.slice(Math.max(0, index - 30), index + 30);
-    const negative = negativePattern.test(nearby);
+    // Negation binds within a clause: "beaches but no nightlife" negates only
+    // nightlife. Look from the last clause break up to the tag, plus a short
+    // trailing window for postfix Hinglish negation ("nightlife nahi").
+    const clause = lower.slice(0, index).split(/[,;.]|\band\b|\bbut\b/).pop() ?? "";
+    const trailing = lower.slice(index, index + (alias?.length ?? 0) + 6);
+    const negative =
+      negativePattern.test(clause) || negativePattern.test(trailing);
     return {
       tag,
       weight: negative ? -1 : 1,
-      confidence: 0.82,
+      confidence,
       directFirstPerson: true,
     };
   });

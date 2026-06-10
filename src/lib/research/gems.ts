@@ -337,12 +337,30 @@ function mergeGems(lists: Gem[][]): Gem[] {
 const gemCache = new Map<string, { gems: Gem[]; at: number }>();
 const GEM_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 
+// Places gems outscore community ones (they carry ratings), so without a
+// reserve they fill every slot. Guarantee a few community/offbeat picks
+// (Atlas Obscura + Reddit) so "hidden gems" actually surface, then fill the
+// rest by score. Result stays score-ordered.
+function selectWithVariety(sorted: Gem[], limit: number): Gem[] {
+  const COMMUNITY_SLOTS = 3;
+  const community = sorted.filter(
+    (gem) => gem.sources.includes("atlas") || gem.sources.includes("reddit"),
+  );
+  const chosen = new Set<Gem>(community.slice(0, COMMUNITY_SLOTS));
+  for (const gem of sorted) {
+    if (chosen.size >= limit) break;
+    chosen.add(gem);
+  }
+  return [...chosen].sort((a, b) => b.score - a.score).slice(0, limit);
+}
+
 export async function getGems(city: string, limit = 12): Promise<Gem[]> {
   // Keep the test suite hermetic — these fetchers reach the network.
   if (process.env.NODE_ENV === "test") return [];
   const key = gemKey(city);
   const cached = gemCache.get(key);
-  if (cached && Date.now() - cached.at < GEM_TTL_MS) return cached.gems.slice(0, limit);
+  if (cached && Date.now() - cached.at < GEM_TTL_MS)
+    return selectWithVariety(cached.gems, limit);
   const [places, atlas, reddit] = await Promise.all([
     fromPlaces(city).catch(() => []),
     fromAtlas(city).catch(() => []),
@@ -350,5 +368,5 @@ export async function getGems(city: string, limit = 12): Promise<Gem[]> {
   ]);
   const gems = mergeGems([places, atlas, reddit]);
   gemCache.set(key, { gems, at: Date.now() });
-  return gems.slice(0, limit);
+  return selectWithVariety(gems, limit);
 }

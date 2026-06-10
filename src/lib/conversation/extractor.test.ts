@@ -26,6 +26,39 @@ describe("deterministic conversation extraction", () => {
     ).toHaveLength(0);
   });
 
+  it("detects preferences expressed without a pronoun (verb or bare list)", () => {
+    const verb = extractDeterministically("love beaches and cafes");
+    expect(verb.preferences.map((p) => p.tag)).toEqual(
+      expect.arrayContaining(["beaches", "cafes"]),
+    );
+    const bareList = extractDeterministically("Beach shacks, sunsets, seafood");
+    expect(bareList.preferences.map((p) => p.tag)).toEqual(
+      expect.arrayContaining(["beaches", "food"]),
+    );
+  });
+
+  it("still ignores third-person preferences without a pronoun", () => {
+    expect(
+      extractDeterministically("Rohan loves haunted places").preferences,
+    ).toHaveLength(0);
+    expect(
+      extractDeterministically("she really wants nightlife").preferences,
+    ).toHaveLength(0);
+  });
+
+  it("captures negated preferences as a downvote", () => {
+    const result = extractDeterministically("no nightlife please, hate clubs");
+    const nightlife = result.preferences.find((p) => p.tag === "nightlife");
+    expect(nightlife?.weight).toBe(-1);
+  });
+
+  it("binds negation to its own clause, not earlier preferences", () => {
+    const result = extractDeterministically("beaches and cafes but no nightlife");
+    expect(result.preferences.find((p) => p.tag === "beaches")?.weight).toBe(1);
+    expect(result.preferences.find((p) => p.tag === "cafes")?.weight).toBe(1);
+    expect(result.preferences.find((p) => p.tag === "nightlife")?.weight).toBe(-1);
+  });
+
   it("keeps forwarded facts soft", () => {
     const result = extractDeterministically(
       "I can only spend INR 5000",

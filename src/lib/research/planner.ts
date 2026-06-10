@@ -31,8 +31,12 @@ function destinationScore(
   summary: TripSummary,
   weights: Map<InterestTag, number>,
 ): number {
+  // A destination's earlier tags are its defining vibe; weight them more so a
+  // place that merely lists "culture" 3rd doesn't tie a true heritage town.
+  const positionWeight = [1, 0.85, 0.7, 0.55, 0.4];
   let score = destination.tags.reduce(
-    (sum, tag) => sum + (weights.get(tag) ?? 0),
+    (sum, tag, index) =>
+      sum + (weights.get(tag) ?? 0) * (positionWeight[index] ?? 0.4),
     0,
   );
   const days = summary.dates.durationDays;
@@ -241,23 +245,27 @@ export async function generatePlans(
     }))
     .sort((a, b) => b.score - a.score);
 
+  // Pick three, nudging toward different states for variety — but as a soft
+  // penalty, so a clearly stronger same-state match (e.g. another Rajasthan
+  // fort town for a heritage trip) still beats a weak cross-state filler.
+  const DIVERSITY_PENALTY = 1.2;
+  const pool = [...ranked];
   const selected: CuratedDestination[] = [];
-  for (const item of ranked) {
-    if (selected.length === 3) break;
-    if (
-      selected.some(
-        (existing) =>
-          existing.state === item.destination.state && selected.length < 2,
-      )
-    ) {
-      continue;
+  while (selected.length < 3 && pool.length > 0) {
+    let bestIndex = 0;
+    let bestAdjusted = -Infinity;
+    for (let i = 0; i < pool.length; i += 1) {
+      const sharesState = selected.some(
+        (chosen) => chosen.state === pool[i].destination.state,
+      );
+      const adjusted = pool[i].score - (sharesState ? DIVERSITY_PENALTY : 0);
+      if (adjusted > bestAdjusted) {
+        bestAdjusted = adjusted;
+        bestIndex = i;
+      }
     }
-    selected.push(item.destination);
-  }
-  while (selected.length < 3) {
-    const next = ranked.find((item) => !selected.includes(item.destination));
-    if (!next) break;
-    selected.push(next.destination);
+    selected.push(pool[bestIndex].destination);
+    pool.splice(bestIndex, 1);
   }
 
   const angles: GeneratedPlan["angle"][] = [
