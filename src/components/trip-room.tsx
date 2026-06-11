@@ -142,7 +142,21 @@ export function TripRoom({
   const mergeMessages = useCallback((incoming: ThreadMessage[]) => {
     setMessages((prev) => {
       const next = new Map(prev);
-      for (const message of incoming) next.set(message.id, message);
+      for (const message of incoming) {
+        next.set(message.id, message);
+        // Drop the optimistic placeholder once the real message confirms.
+        if (message.participantId) {
+          for (const [id, pending] of next) {
+            if (
+              id.startsWith("pending:") &&
+              pending.participantId === message.participantId &&
+              pending.text === message.text
+            ) {
+              next.delete(id);
+            }
+          }
+        }
+      }
       return next;
     });
   }, []);
@@ -208,11 +222,12 @@ export function TripRoom({
   const postMessage = useCallback(
     async (body: string) => {
       if (!participantId || !displayName) return;
-      await fetch(`/api/trip/${slug}/messages`, {
+      const response = await fetch(`/api/trip/${slug}/messages`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ participantId, displayName, text: body }),
       });
+      if (!response.ok) throw new Error("Message failed to send");
       void refetchState();
     },
     [participantId, displayName, slug, refetchState],
@@ -221,12 +236,35 @@ export function TripRoom({
   async function sendDraft(event: FormEvent) {
     event.preventDefault();
     const body = text.trim();
-    if (!body || sending) return;
-    setSending(true);
+    if (!body || sending || !participantId || !displayName) return;
     setText("");
     setEmojiOpen(false);
+    // Optimistic: render the message instantly, before the server round-trip.
+    // It's reconciled away when the real message arrives over SSE / refetch.
+    const pendingId = `pending:${crypto.randomUUID()}`;
+    setMessages((prev) => {
+      const next = new Map(prev);
+      next.set(pendingId, {
+        id: pendingId,
+        participantId,
+        displayName,
+        text: body,
+        occurredAt: new Date().toISOString(),
+        reactions: [],
+      });
+      return next;
+    });
+    setSending(true);
     try {
       await postMessage(body);
+    } catch {
+      // Roll back the placeholder and restore the draft so they can retry.
+      setMessages((prev) => {
+        const next = new Map(prev);
+        next.delete(pendingId);
+        return next;
+      });
+      setText(body);
     } finally {
       setSending(false);
     }

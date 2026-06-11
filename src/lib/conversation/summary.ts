@@ -54,6 +54,14 @@ export function buildTripSummary(input: {
         .map((value) => value.trim()),
     ),
   ];
+  const requestedDestinations = [
+    ...new Set(
+      valuesFor(relevantFacts, "destination")
+        .filter((value): value is string => typeof value === "string")
+        .map((value) => value.trim())
+        .filter(Boolean),
+    ),
+  ];
   const hardConstraints = relevantFacts
     .filter((fact) => fact.isHard && fact.kind === "restriction")
     .flatMap((fact) =>
@@ -113,6 +121,7 @@ export function buildTripSummary(input: {
   return TripSummarySchema.parse({
     groupSize: input.participants.length,
     departureCities,
+    requestedDestinations,
     dates: { start, end, durationDays },
     budget: {
       minInr,
@@ -155,7 +164,7 @@ export function formatTripSummary(summary: TripSummary, version: number): string
   return `*Safar trip summary v${version}*
 
 👥 ${summary.groupSize} active travellers
-📍 From: ${summary.departureCities.join(", ") || "Not clear yet"}
+📍 From: ${summary.departureCities.join(", ") || "Not clear yet"}${summary.requestedDestinations.length ? `\n🎯 Requested: ${summary.requestedDestinations.join(", ")}` : ""}
 🗓️ ${dates}
 💸 ${budget}
 🚫 Hard constraints: ${summary.hardConstraints.join("; ") || "None confirmed"}

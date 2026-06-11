@@ -51,27 +51,32 @@ function detectLanguage(text: string): MessageExtraction["language"] {
   return /[a-z]/i.test(text) ? "en" : "unknown";
 }
 
+const MONEY_UNIT: Record<string, number> = {
+  k: 1000, thousand: 1000, grand: 1000,
+  lakh: 100000, lakhs: 100000, lac: 100000, lacs: 100000, l: 100000,
+  cr: 10000000, crore: 10000000, crores: 10000000,
+};
+
 function extractBudget(text: string): MessageExtraction["facts"] {
-  const match = text.match(
-    /(?:₹|rs\.?|inr)\s*([\d,]+)(?:\s*(?:-|to|se)\s*(?:₹|rs\.?|inr)?\s*([\d,]+))?/i,
-  );
-  if (!match) return [];
-  const first = Number(match[1].replaceAll(",", ""));
-  const second = match[2] ? Number(match[2].replaceAll(",", "")) : first;
-  if (!Number.isFinite(first) || !Number.isFinite(second)) return [];
+  const amounts: number[] = [];
+  // A number counts as money only with a signal: a ₹/rs/inr/budget prefix, or a
+  // rupees/k/lakh suffix — so "3 day" and "17th" aren't read as budgets.
+  const re =
+    /(₹|rs\.?|inr|budget(?:\s*(?:is|cap|of|around|:|=))?)?\s*₹?\s*(\d[\d,]*\.?\d*)\s*(k|thousand|grand|lakhs?|lacs?|l|cr|crores?|rupees?|rs\.?|inr|₹|\/-)?/gi;
+  for (const m of text.matchAll(re)) {
+    const unit = (m[3] ?? "").toLowerCase().replace(/[.\s/-]/g, "");
+    if (!m[1] && !unit) continue; // bare number, no money signal
+    const base = Number(m[2].replace(/,/g, ""));
+    if (!Number.isFinite(base)) continue;
+    const value = Math.round(base * (MONEY_UNIT[unit] ?? 1));
+    if (value >= 300) amounts.push(value);
+  }
+  if (amounts.length === 0) return [];
+  const capWords =
+    /\b(max|maximum|under|within|cap|upto|up to|at most|budget|only)\b/i.test(text);
   return [
-    {
-      kind: "budget_min",
-      value: Math.min(first, second),
-      confidence: 0.88,
-      isHard: negativePattern.test(text) || /\b(max|maximum|under|within)\b/i.test(text),
-    },
-    {
-      kind: "budget_max",
-      value: Math.max(first, second),
-      confidence: 0.88,
-      isHard: /\b(max|maximum|under|within|budget)\b/i.test(text),
-    },
+    { kind: "budget_min", value: Math.min(...amounts), confidence: 0.85, isHard: capWords || negativePattern.test(text) },
+    { kind: "budget_max", value: Math.max(...amounts), confidence: 0.85, isHard: capWords },
   ];
 }
 
@@ -88,50 +93,106 @@ function extractDuration(text: string): MessageExtraction["facts"] {
   ];
 }
 
+const MONTHS: Record<string, number> = {
+  jan: 1, feb: 2, mar: 3, apr: 4, may: 5, jun: 6,
+  jul: 7, aug: 8, sep: 9, oct: 10, nov: 11, dec: 12,
+};
+
+// "17th june" / "june 17" → ISO, inferring the year (next year if already past).
+function naturalDate(text: string): string | null {
+  const lower = text.toLowerCase();
+  const dayMonth = lower.match(
+    /\b(\d{1,2})(?:st|nd|rd|th)?\s+(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*/,
+  );
+  const monthDay = lower.match(
+    /\b(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\s+(\d{1,2})(?:st|nd|rd|th)?/,
+  );
+  let day: number | undefined;
+  let month: number | undefined;
+  if (dayMonth) {
+    day = Number(dayMonth[1]);
+    month = MONTHS[dayMonth[2].slice(0, 3)];
+  } else if (monthDay) {
+    month = MONTHS[monthDay[1].slice(0, 3)];
+    day = Number(monthDay[2]);
+  }
+  if (!month || !day || day < 1 || day > 31) return null;
+  const now = new Date();
+  let year = now.getUTCFullYear();
+  const today = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate());
+  if (Date.UTC(year, month - 1, day) < today) year += 1;
+  return `${year}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+}
+
 function extractDates(text: string): MessageExtraction["facts"] {
   const isoDates = [...text.matchAll(/\b(20\d{2}-\d{2}-\d{2})\b/g)].map(
     (match) => match[1],
   );
-  if (isoDates.length === 0) return [];
-  return [
-    {
-      kind: "start_date",
-      value: isoDates[0],
-      confidence: 0.95,
-      isHard: true,
-    },
-    ...(isoDates[1]
-      ? [
-          {
-            kind: "end_date" as const,
-            value: isoDates[1],
-            confidence: 0.95,
-            isHard: true,
-          },
-        ]
-      : []),
-  ];
+  if (isoDates.length > 0) {
+    return [
+      { kind: "start_date", value: isoDates[0], confidence: 0.95, isHard: true },
+      ...(isoDates[1]
+        ? [{ kind: "end_date" as const, value: isoDates[1], confidence: 0.95, isHard: true }]
+        : []),
+    ];
+  }
+  const natural = naturalDate(text);
+  if (natural) {
+    return [{ kind: "start_date", value: natural, confidence: 0.8, isHard: true }];
+  }
+  return [];
 }
 
 function extractOrigin(text: string): MessageExtraction["facts"] {
   const patterns = [
-    /\b(?:from|leaving from|departing from)\s+([A-Za-z][A-Za-z ]{1,30})/i,
-    /\b(?:main|hum)\s+([A-Za-z][A-Za-z ]{1,24})\s+(?:se|mein)\b/i,
+    /\b(?:departure city|departure point|departing from|departing|leaving from|leaving|leave from|starting from|start from|flying from|travell?ing from|coming from)\b(?:\s+is)?\s*:?\s*([a-z][a-z .]{1,30})/i,
+    /\b(?:from|based in|live in)\s+([a-z][a-z .]{1,30})/i,
+    /\b(?:main|hum)\s+([a-z][a-z .]{1,24})\s+(?:se|mein)\b/i,
   ];
+  const stop = /^(the|a|an|here|there|home|work|now|today|tomorrow|class|office|trip)\b/i;
   for (const pattern of patterns) {
     const match = text.match(pattern);
     if (!match) continue;
-    const value = match[1].trim().replace(/\s+(on|and|but)$/i, "");
-    return [
-      {
-        kind: "origin",
-        value,
-        confidence: 0.78,
-        isHard: true,
-      },
-    ];
+    const value = match[1]
+      .trim()
+      .replace(/\b(is|are|on|and|but|please|pls|now|today|tomorrow)\b.*$/i, "")
+      .replace(/^the\s+/i, "")
+      .trim();
+    if (!value || stop.test(value)) continue;
+    return [{ kind: "origin", value, confidence: 0.78, isHard: true }];
   }
   return [];
+}
+
+const DESTINATION_VERBS =
+  /\b(?:go(?:ing)? to|wanna go to|want(?:ed)? to go(?: to)?|visit(?:ing)?|trip to|travel to|head(?:ing)? to|how about|what about|let'?s do|consider|thinking(?: of| about)?|plan(?:ning)?(?: a trip)?(?: for| to)?|destination(?:'?s| is)?)\s+([A-Za-z][A-Za-z]+(?:\s+[A-Za-z]+)?)/gi;
+// Words that follow a "go to / visit" verb but aren't a place.
+const PLACE_STOPWORDS = new Set([
+  "the", "a", "an", "it", "this", "that", "there", "here", "home", "work",
+  "sleep", "bed", "gym", "school", "office", "market", "station", "airport",
+  "hospital", "mall", "you", "us", "me", "them", "everyone", "somewhere",
+  "anywhere", "nowhere", "places", "place", "trip", "beach", "beaches",
+  "mountains", "hills", "town", "plan", "do", "see", "eat", "stay", "relax",
+  "party", "explore", "more", "some", "any", "my", "our", "hell",
+]);
+
+function extractDestination(text: string): MessageExtraction["facts"] {
+  const found = new Set<string>();
+  for (const match of text.matchAll(DESTINATION_VERBS)) {
+    const phrase = match[1]
+      .trim()
+      .replace(/\b(for|on|in|next|this|please|pls|trip|vacation)\b.*$/i, "")
+      .trim();
+    const first = phrase.split(/\s+/)[0]?.toLowerCase();
+    if (!first || PLACE_STOPWORDS.has(first)) continue;
+    found.add(phrase.replace(/\b\w/g, (c) => c.toUpperCase()));
+  }
+  return [...found].slice(0, 3).map((value) => ({
+    kind: "destination" as const,
+    value,
+    confidence: 0.72,
+    isHard: false,
+  }));
 }
 
 function extractPreferences(text: string): MessageExtraction["preferences"] {
@@ -153,7 +214,17 @@ function extractPreferences(text: string): MessageExtraction["preferences"] {
   // A short, interest-led phrase ("beach shacks, sunsets, seafood") is the
   // speaker listing what they want — even without a pronoun or verb.
   const shortInterestList = wordCount <= 10 && !text.includes("?");
-  if (!hasFirstPerson && !hasPreferenceVerb && !shortInterestList) return [];
+  // ...as is any message that names two or more interests ("beaches and
+  // relaxation, good seafood, 4 days from Mumbai"), even mixed with trip facts.
+  const manyInterests = matches.length >= 2 && !text.includes("?");
+  if (
+    !hasFirstPerson &&
+    !hasPreferenceVerb &&
+    !shortInterestList &&
+    !manyInterests
+  ) {
+    return [];
+  }
 
   const confidence = hasFirstPerson ? 0.82 : hasPreferenceVerb ? 0.74 : 0.62;
 
@@ -165,10 +236,14 @@ function extractPreferences(text: string): MessageExtraction["preferences"] {
     // Negation binds within a clause: "beaches but no nightlife" negates only
     // nightlife. Look from the last clause break up to the tag, plus a short
     // trailing window for postfix Hinglish negation ("nightlife nahi").
-    const clause = lower.slice(0, index).split(/[,;.]|\band\b|\bbut\b/).pop() ?? "";
-    const trailing = lower.slice(index, index + (alias?.length ?? 0) + 6);
+    const before = lower.slice(0, index).split(/[,;.]|\band\b|\bbut\b/).pop() ?? "";
+    // Trailing clause only up to the next break, so "beach, no party" negates
+    // party — not beach.
+    const after =
+      lower.slice(index + (alias?.length ?? 0)).split(/[,;.]|\band\b|\bbut\b/)[0] ??
+      "";
     const negative =
-      negativePattern.test(clause) || negativePattern.test(trailing);
+      negativePattern.test(before) || negativePattern.test(after);
     return {
       tag,
       weight: negative ? -1 : 1,
@@ -188,6 +263,7 @@ export function extractDeterministically(
     ...extractDuration(text),
     ...extractDates(text),
     ...extractOrigin(text),
+    ...extractDestination(text),
   ];
 
   return {
@@ -215,7 +291,7 @@ Return JSON only. Understand English, Hindi, and Roman-script Hinglish.
 Only attribute a personal preference when the speaker uses direct first-person evidence.
 Jokes, forwarded content, and statements about another person cannot create hard constraints.
 Allowed interest tags: ${interestTags.join(", ")}.
-Allowed fact kinds: origin, start_date, end_date, duration_days, budget_min, budget_max, transport, restriction.`,
+Allowed fact kinds: origin, destination, start_date, end_date, duration_days, budget_min, budget_max, transport, restriction.`,
     user: JSON.stringify({
       message: input.text,
       forwarded: input.isForwarded ?? false,

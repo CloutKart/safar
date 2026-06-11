@@ -35,7 +35,10 @@ async function fetchRedditPosts(city) {
       waitUntil: "domcontentloaded",
       timeout: 25000,
     });
-    const query = `${city} hidden gems OR offbeat OR underrated`;
+    // City-specific threads (itineraries / "things to do in <city>") whose
+    // comments name local spots — not generic "underrated Indian cities"
+    // megathreads, which only list other destinations.
+    const query = `${city} (itinerary OR "things to do" OR "places to visit" OR "hidden gems")`;
     const data = await page.evaluate(async (q) => {
       try {
         const response = await fetch(
@@ -49,16 +52,48 @@ async function fetchRedditPosts(city) {
       }
     }, query);
     const children = (data && data.data && data.data.children) || [];
-    return children
+    const posts = children
       .map((child) => child.data)
       .filter(Boolean)
       .map((post) => ({
         title: post.title || "",
-        selftext: (post.selftext || "").slice(0, 800),
+        selftext: (post.selftext || "").slice(0, 600),
         subreddit: post.subreddit || "",
         score: post.score || 0,
+        permalink: post.permalink || "",
         url: post.permalink ? `https://www.reddit.com${post.permalink}` : "",
+        comments: [],
       }));
+    // Relevance-first: threads whose title actually names the city (then by
+    // upvotes) — a viral off-topic post can otherwise outrank them.
+    const cityLower = city.toLowerCase();
+    const titleHasCity = (post) =>
+      post.title.toLowerCase().includes(cityLower) ? 1 : 0;
+    posts.sort((a, b) => titleHasCity(b) - titleHasCity(a) || b.score - a.score);
+    // Specific place names usually live in the comments, not the post body.
+    // Pull top comments from the few most-relevant threads (safe within the
+    // app's 60s function budget).
+    const topPosts = posts.slice(0, 3).filter((post) => post.permalink);
+    for (const post of topPosts) {
+      post.comments = await page.evaluate(async (permalink) => {
+        try {
+          const response = await fetch(`${permalink}.json?limit=10&sort=top`, {
+            headers: { Accept: "application/json" },
+          });
+          if (!response.ok) return [];
+          const json = await response.json();
+          const items = (json[1] && json[1].data && json[1].data.children) || [];
+          return items
+            .map((item) => item.data && item.data.body)
+            .filter(Boolean)
+            .map((body) => body.slice(0, 400))
+            .slice(0, 6);
+        } catch {
+          return [];
+        }
+      }, post.permalink);
+    }
+    return posts;
   } finally {
     await context.close();
   }

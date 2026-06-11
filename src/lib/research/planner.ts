@@ -62,22 +62,24 @@ function activitiesFor(
   angle: GeneratedPlan["angle"],
 ): string[] {
   const base = destination.highlights;
+  let ordered: (string | undefined)[];
   if (angle === "adventurous") {
-    return [
+    ordered = [
       base.find((item) => /trek|trail|cave|kayak|rafting|camp/i.test(item)) ??
         base[0],
       ...base.filter((item) => item !== base[0]),
     ];
-  }
-  if (angle === "relaxed") {
-    return [
+  } else if (angle === "relaxed") {
+    ordered = [
       base.find((item) => /cafe|food|village|heritage|sunset/i.test(item)) ??
         base.at(-1) ??
         base[0],
       ...base.slice(0, -1),
     ];
+  } else {
+    ordered = base;
   }
-  return base;
+  return ordered.filter((item): item is string => Boolean(item));
 }
 
 const capitalize = (value: string) =>
@@ -99,12 +101,14 @@ function fallbackItinerary(
         : index === days - 1
           ? [acts.at(-1) ?? acts[0]]
           : [acts[index % acts.length], acts[(index + 1) % acts.length]];
-    const stops: ItineraryStop[] = picks.map((name) => ({
-      name,
-      kind: "sight",
-      note: "",
-      approxInr: null,
-    }));
+    const stops: ItineraryStop[] = picks
+      .filter((name): name is string => Boolean(name))
+      .map((name) => ({
+        name,
+        kind: "sight" as const,
+        note: "",
+        approxInr: null,
+      }));
     stops.push({
       name: "Local café or food stop",
       kind: "food",
@@ -234,6 +238,62 @@ async function enrichItinerary(input: {
   }
 }
 
+// Build a destination on the fly for a city the group named that isn't in the
+// curated catalog — live data (gems, hotels) + the LLM fill in the details.
+function adhocDestination(
+  name: string,
+  weights: Map<InterestTag, number>,
+): CuratedDestination {
+  const topTags = [...weights.entries()]
+    .filter(([, weight]) => weight > 0)
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 5)
+    .map(([tag]) => tag);
+  return {
+    slug:
+      name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "") ||
+      "requested",
+    name,
+    state: "",
+    region: "Requested",
+    nearestAirport: name,
+    idealMonths: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12],
+    minDays: 2,
+    maxDays: 7,
+    dailyBudgetInr: [2000, 6000],
+    accessCostInr: [2000, 8000],
+    tags: topTags.length
+      ? topTags
+      : (["culture", "food", "relaxation"] as InterestTag[]),
+    highlights: [
+      `top sights and viewpoints around ${name}`,
+      `local cafes and food spots in ${name}`,
+      `offbeat corners and markets of ${name}`,
+    ],
+    cautions: [],
+    sourceUrl: `https://www.google.com/search?q=${encodeURIComponent(`${name} travel guide`)}`,
+  };
+}
+
+// Resolve requested cities to catalog entries (fuzzy) or ad-hoc destinations.
+function resolveRequested(
+  names: string[],
+  weights: Map<InterestTag, number>,
+): CuratedDestination[] {
+  const resolved: CuratedDestination[] = [];
+  for (const name of names) {
+    const norm = name.toLowerCase().trim();
+    if (!norm) continue;
+    const match = destinations.find((destination) => {
+      const dn = destination.name.toLowerCase();
+      const head = dn.split(/[ (]/)[0];
+      return dn === norm || destination.slug === norm || dn.includes(norm) || norm.includes(head);
+    });
+    resolved.push(match ?? adhocDestination(name, weights));
+  }
+  return resolved;
+}
+
 export async function generatePlans(
   summary: TripSummary,
 ): Promise<GeneratedPlan[]> {
@@ -268,13 +328,25 @@ export async function generatePlans(
     pool.splice(bestIndex, 1);
   }
 
+  // Pin up to two explicitly requested cities first (so a named city always
+  // appears), then fill the rest with the variety-ranked picks.
+  const requested = resolveRequested(summary.requestedDestinations, weights).slice(0, 2);
+  const finalSelection: CuratedDestination[] = [];
+  const seen = new Set<string>();
+  for (const destination of [...requested, ...selected]) {
+    const key = destination.slug || destination.name.toLowerCase();
+    if (seen.has(key) || finalSelection.length >= 3) continue;
+    seen.add(key);
+    finalSelection.push(destination);
+  }
+
   const angles: GeneratedPlan["angle"][] = [
     "balanced",
     "adventurous",
     "relaxed",
   ];
   const plans = await Promise.all(
-    selected.map(async (destination, index) => {
+    finalSelection.map(async (destination, index) => {
       const angle = angles[index];
       const days =
         summary.dates.durationDays ??
@@ -349,11 +421,13 @@ export async function generatePlans(
         itinerary,
         sources: [
           {
-            title: `${destination.state} official tourism`,
+            title: destination.state
+              ? `${destination.state} official tourism`
+              : `${destination.name} travel guide`,
             url: destination.sourceUrl,
-            publisher: `${destination.state} Tourism`,
+            publisher: destination.state ? `${destination.state} Tourism` : "Web",
             retrievedAt,
-            sourceType: "curated",
+            sourceType: "curated" as const,
           },
           ...searchResults.slice(0, 4).map((result) => ({
             title: result.title,
@@ -362,7 +436,7 @@ export async function generatePlans(
             retrievedAt,
             sourceType: result.sourceType,
           })),
-        ],
+        ].filter((source) => /^https?:\/\//.test(source.url)),
         cost: {
           lowInr: Math.round(likely * 0.82),
           likelyInr: likely,

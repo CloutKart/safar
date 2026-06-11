@@ -32,7 +32,8 @@ export interface Gem {
 
 const GEM_UA = "Safar/1.0 (group trip planner)";
 
-export function gemKey(name: string): string {
+export function gemKey(name: string | null | undefined): string {
+  if (!name) return "";
   return name
     .toLowerCase()
     .normalize("NFKD")
@@ -266,12 +267,20 @@ async function fromReddit(city: string): Promise<Gem[]> {
   }).catch(() => null);
   if (!response?.ok) return [];
   const data = (await response.json()) as {
-    posts?: Array<{ title?: string; selftext?: string }>;
+    posts?: Array<{ title?: string; selftext?: string; comments?: string[] }>;
   };
   const corpus = (data.posts ?? [])
-    .map((post) => `${post.title ?? ""}\n${(post.selftext ?? "").slice(0, 600)}`)
+    .map((post) =>
+      [
+        post.title ?? "",
+        (post.selftext ?? "").slice(0, 400),
+        (post.comments ?? []).join("\n"),
+      ]
+        .filter(Boolean)
+        .join("\n"),
+    )
     .join("\n---\n")
-    .slice(0, 6000);
+    .slice(0, 9000);
   if (!corpus.trim()) return [];
   const extracted = await generateStructured({
     schema: GemExtractSchema,
@@ -298,8 +307,8 @@ async function fromReddit(city: string): Promise<Gem[]> {
 function scoreGem(gem: Gem): number {
   let score = 0;
   if (gem.sources.includes("places")) score += 40;
-  if (gem.sources.includes("atlas")) score += 25;
-  if (gem.sources.includes("reddit")) score += 22;
+  if (gem.sources.includes("atlas")) score += 28;
+  if (gem.sources.includes("reddit")) score += 28;
   if (gem.sources.length > 1) score += 22; // cross-source agreement
   if (gem.rating != null) score += (gem.rating - 4) * 15;
   // hidden-gem signal: well-rated but not flooded with reviews
@@ -338,15 +347,17 @@ const gemCache = new Map<string, { gems: Gem[]; at: number }>();
 const GEM_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 
 // Places gems outscore community ones (they carry ratings), so without a
-// reserve they fill every slot. Guarantee a few community/offbeat picks
-// (Atlas Obscura + Reddit) so "hidden gems" actually surface, then fill the
-// rest by score. Result stays score-ordered.
+// reserve they fill every slot. Deliberately blend popular Places picks with
+// community "hidden gems": reserve a few Reddit and a few Atlas slots, then
+// fill the rest by score. Result stays score-ordered.
 function selectWithVariety(sorted: Gem[], limit: number): Gem[] {
-  const COMMUNITY_SLOTS = 3;
-  const community = sorted.filter(
-    (gem) => gem.sources.includes("atlas") || gem.sources.includes("reddit"),
+  const reddit = sorted.filter((gem) => gem.sources.includes("reddit"));
+  const atlas = sorted.filter(
+    (gem) => gem.sources.includes("atlas") && !gem.sources.includes("reddit"),
   );
-  const chosen = new Set<Gem>(community.slice(0, COMMUNITY_SLOTS));
+  const chosen = new Set<Gem>();
+  for (const gem of reddit.slice(0, 3)) chosen.add(gem);
+  for (const gem of atlas.slice(0, 3)) chosen.add(gem);
   for (const gem of sorted) {
     if (chosen.size >= limit) break;
     chosen.add(gem);

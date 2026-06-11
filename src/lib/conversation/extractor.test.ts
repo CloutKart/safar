@@ -59,6 +59,59 @@ describe("deterministic conversation extraction", () => {
     expect(result.preferences.find((p) => p.tag === "nightlife")?.weight).toBe(-1);
   });
 
+  it("extracts budget from natural phrasing (k, lakh, rupees, cap)", () => {
+    const k = extractDeterministically("my budget cap is 15k");
+    expect(k.facts.find((f) => f.kind === "budget_max")?.value).toBe(15000);
+    const rupees = extractDeterministically("Budget is 150000 rupees");
+    expect(rupees.facts.find((f) => f.kind === "budget_max")?.value).toBe(150000);
+    const lakh = extractDeterministically("around 1.5 lakh total");
+    expect(lakh.facts.find((f) => f.kind === "budget_max")?.value).toBe(150000);
+  });
+
+  it("does not read day counts or dates as budget", () => {
+    const result = extractDeterministically("3 day trip leaving on 17th june");
+    expect(result.facts.some((f) => f.kind.startsWith("budget"))).toBe(false);
+  });
+
+  it("extracts origin from 'departure city is X' and a natural date", () => {
+    const result = extractDeterministically("Departure city is Dehradun, leaving 17th june");
+    expect(result.facts.find((f) => f.kind === "origin")?.value).toBe("Dehradun");
+    expect(result.facts.find((f) => f.kind === "start_date")?.value).toMatch(/-06-17$/);
+  });
+
+  it("does not let a later clause negate an earlier interest", () => {
+    const r = extractDeterministically("quiet beach, no party");
+    expect(r.preferences.find((p) => p.tag === "beaches")?.weight).toBe(1);
+    expect(r.preferences.find((p) => p.tag === "nightlife")?.weight).toBe(-1);
+  });
+
+  it("reads interests from a longer fact-mixed message (2+ interests)", () => {
+    const r = extractDeterministically(
+      "beaches and relaxation, good seafood, 4 days from Mumbai budget 15k",
+    );
+    expect(r.preferences.map((p) => p.tag)).toEqual(
+      expect.arrayContaining(["beaches", "relaxation", "food"]),
+    );
+  });
+
+  it("detects an explicitly suggested destination, ignoring non-places", () => {
+    expect(
+      extractDeterministically("lets go to Manali next week").facts.find(
+        (f) => f.kind === "destination",
+      )?.value,
+    ).toBe("Manali");
+    expect(
+      extractDeterministically("how about Goa?").facts.find(
+        (f) => f.kind === "destination",
+      )?.value,
+    ).toBe("Goa");
+    expect(
+      extractDeterministically("lets go to sleep").facts.some(
+        (f) => f.kind === "destination",
+      ),
+    ).toBe(false);
+  });
+
   it("keeps forwarded facts soft", () => {
     const result = extractDeterministically(
       "I can only spend INR 5000",
