@@ -11,7 +11,7 @@ import {
 import { generateStructured } from "@/lib/ai/client";
 import { researchDestination } from "@/lib/research/search";
 import { getPriceQuotes, type SupplierQuote } from "@/lib/research/pricing";
-import { getGems, gemKey, type Gem } from "@/lib/research/gems";
+import { getGems, gemKey, isHiddenGem, type Gem } from "@/lib/research/gems";
 
 function groupWeights(summary: TripSummary): Map<InterestTag, number> {
   const weights = new Map<InterestTag, number>();
@@ -141,10 +141,14 @@ function injectGems(
   );
   // Substring-aware so "Gokarna view point" isn't re-added when the LLM already
   // wrote "Sunset at Gokarna view point".
-  const fresh = gems.filter((gem) => {
-    const key = gemKey(gem.name);
-    return key.length > 0 && !present.some((name) => name.includes(key) || key.includes(name));
-  });
+  const fresh = gems
+    .filter((gem) => {
+      const key = gemKey(gem.name);
+      return key.length > 0 && !present.some((name) => name.includes(key) || key.includes(name));
+    })
+    // Inject genuinely lesser-known spots first — the headline sights are
+    // already in the LLM's day plan.
+    .sort((a, b) => Number(isHiddenGem(b)) - Number(isHiddenGem(a)));
   return itinerary.map((day, index) => {
     const gem = fresh[index];
     if (!gem) return day;

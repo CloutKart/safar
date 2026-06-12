@@ -443,18 +443,30 @@ function mergeGems(lists: Gem[][]): Gem[] {
 const gemCache = new Map<string, { gems: Gem[]; at: number }>();
 const GEM_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 
-// Places gems outscore community ones (they carry ratings), so without a
-// reserve they fill every slot. Deliberately blend popular Places picks with
-// community "hidden gems" (Reddit + Atlas + Wikivoyage): reserve up to half the
-// slots for community sources, then fill the rest by score.
-const COMMUNITY_SOURCES: GemSource[] = ["reddit", "atlas", "wikivoyage"];
+// A genuine hidden gem is a well-rated spot tourists haven't flooded (modest
+// review count) or a Reddit community pick — NOT a headline attraction with
+// tens of thousands of reviews. Source alone isn't the signal: Atlas/Wikivoyage
+// list famous sights too, so we key off review volume.
+const TOURIST_FLOOD_REVIEWS = 3000;
+export function isHiddenGem(gem: Gem): boolean {
+  if (gem.reviewCount != null && gem.reviewCount > TOURIST_FLOOD_REVIEWS) return false;
+  if (gem.sources.includes("reddit")) return true;
+  return (
+    gem.rating != null &&
+    gem.rating >= 4.3 &&
+    gem.reviewCount != null &&
+    gem.reviewCount >= 30 &&
+    gem.reviewCount <= TOURIST_FLOOD_REVIEWS
+  );
+}
+
+// Reserve roughly half the slots for genuine hidden gems so the result is a
+// real mix of well-known must-sees and lesser-known local spots.
 function selectWithVariety(sorted: Gem[], limit: number): Gem[] {
-  const isCommunity = (gem: Gem) =>
-    gem.sources.some((source) => COMMUNITY_SOURCES.includes(source));
   const chosen = new Set<Gem>();
-  const communityTarget = Math.floor(limit / 2);
-  for (const gem of sorted.filter(isCommunity)) {
-    if (chosen.size >= communityTarget) break;
+  const hiddenTarget = Math.ceil(limit / 2);
+  for (const gem of sorted.filter(isHiddenGem)) {
+    if (chosen.size >= hiddenTarget) break;
     chosen.add(gem);
   }
   for (const gem of sorted) {
