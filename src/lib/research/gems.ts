@@ -14,7 +14,7 @@ export type GemType =
   | "history"
   | "quirky"
   | "experience";
-export type GemSource = "places" | "atlas" | "reddit";
+export type GemSource = "places" | "atlas" | "reddit" | "wikivoyage";
 
 export interface Gem {
   name: string;
@@ -303,12 +303,109 @@ async function fromReddit(city: string): Promise<Gem[]> {
   }));
 }
 
+// ── Wikivoyage (free, open, no key, never IP-blocked) ────────────────────────
+// Wikivoyage city pages list named places in structured {{see}}/{{do}}/{{eat}}
+// templates, so we parse them directly — no LLM needed.
+const WIKIVOYAGE_API = "https://en.wikivoyage.org/w/api.php";
+
+function wikiField(block: string, field: string): string | null {
+  const match = block.match(new RegExp(`\\|\\s*${field}\\s*=\\s*([^\\n|}]*)`, "i"));
+  const value = match?.[1]?.trim();
+  return value ? value : null;
+}
+
+function cleanWiki(text: string): string {
+  return text
+    .replace(/\[\[[^\]|]*\|([^\]]*)\]\]/g, "$1") // [[link|label]] → label
+    .replace(/\[\[([^\]]*)\]\]/g, "$1") // [[link]] → link
+    .replace(/\[https?:\/\/\S+\s+([^\]]*)\]/g, "$1") // [url label] → label
+    .replace(/\{\{[^{}]*\}\}/g, "")
+    .replace(/<[^>]+>/g, "")
+    .replace(/'''?/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function wikiGemType(kind: string, content: string): GemType {
+  if (kind === "eat" || kind === "drink") return "food";
+  if (kind === "do") return "experience";
+  if (kind === "buy") return "quirky";
+  const c = content.toLowerCase();
+  if (/view\s?point|sunset point|overlook|panoram/.test(c)) return "viewpoint";
+  if (/lake|garden|park|hill|waterfall|beach|valley|wildlife|forest|nature|river|island/.test(c))
+    return "nature";
+  if (/temple|fort|palace|museum|church|mosque|tomb|monument|heritage|historic|ruins|gate|haveli|memorial|ghat/.test(c))
+    return "history";
+  return "history";
+}
+
+async function fromWikivoyage(city: string): Promise<Gem[]> {
+  const params = new URLSearchParams({
+    action: "parse",
+    page: city,
+    prop: "wikitext",
+    format: "json",
+    formatversion: "2",
+    redirects: "1",
+  });
+  const response = await fetch(`${WIKIVOYAGE_API}?${params}`, {
+    headers: { "User-Agent": GEM_UA, Accept: "application/json" },
+    signal: AbortSignal.timeout(12_000),
+  }).catch(() => null);
+  if (!response?.ok) return [];
+  const data = (await response.json()) as { parse?: { wikitext?: string } };
+  const wikitext = data.parse?.wikitext;
+  if (!wikitext) return [];
+
+  const gems: Gem[] = [];
+  const seen = new Set<string>();
+  // A balanced spread: sights, then things to do, then where to eat.
+  const buckets: Array<[string, number]> = [["see", 6], ["do", 3], ["eat", 3]];
+  for (const [kind, cap] of buckets) {
+    const blocks =
+      wikitext.match(new RegExp(`\\{\\{\\s*${kind}\\b[\\s\\S]*?\\}\\}`, "gi")) ?? [];
+    let added = 0;
+    for (const block of blocks) {
+      if (added >= cap) break;
+      const rawName = wikiField(block, "name");
+      if (!rawName) continue;
+      const name = cleanWiki(rawName);
+      const key = gemKey(name);
+      if (!key || seen.has(key)) continue;
+      seen.add(key);
+      const contentMatch = block.match(/\|\s*content\s*=\s*([\s\S]*?)(?:\n\s*\||\}\})/i);
+      const blurb = cleanWiki(contentMatch?.[1] ?? "").slice(0, 180);
+      const lat = Number(wikiField(block, "lat"));
+      const lng = Number(wikiField(block, "long"));
+      const hasCoords = Number.isFinite(lat) && Number.isFinite(lng) && lat !== 0 && lng !== 0;
+      gems.push({
+        name,
+        type: wikiGemType(kind, blurb),
+        blurb,
+        area: wikiField(block, "address"),
+        sources: ["wikivoyage"],
+        score: 0,
+        rating: null,
+        reviewCount: null,
+        mapsUrl: hasCoords
+          ? `https://www.google.com/maps/search/?api=1&query=${lat},${lng}`
+          : null,
+        lat: hasCoords ? lat : null,
+        lng: hasCoords ? lng : null,
+      });
+      added += 1;
+    }
+  }
+  return gems;
+}
+
 // ── Merge + score ────────────────────────────────────────────────────────────
 function scoreGem(gem: Gem): number {
   let score = 0;
   if (gem.sources.includes("places")) score += 40;
   if (gem.sources.includes("atlas")) score += 28;
   if (gem.sources.includes("reddit")) score += 28;
+  if (gem.sources.includes("wikivoyage")) score += 26;
   if (gem.sources.length > 1) score += 22; // cross-source agreement
   if (gem.rating != null) score += (gem.rating - 4) * 15;
   // hidden-gem signal: well-rated but not flooded with reviews
@@ -348,16 +445,18 @@ const GEM_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 
 // Places gems outscore community ones (they carry ratings), so without a
 // reserve they fill every slot. Deliberately blend popular Places picks with
-// community "hidden gems": reserve a few Reddit and a few Atlas slots, then
-// fill the rest by score. Result stays score-ordered.
+// community "hidden gems" (Reddit + Atlas + Wikivoyage): reserve up to half the
+// slots for community sources, then fill the rest by score.
+const COMMUNITY_SOURCES: GemSource[] = ["reddit", "atlas", "wikivoyage"];
 function selectWithVariety(sorted: Gem[], limit: number): Gem[] {
-  const reddit = sorted.filter((gem) => gem.sources.includes("reddit"));
-  const atlas = sorted.filter(
-    (gem) => gem.sources.includes("atlas") && !gem.sources.includes("reddit"),
-  );
+  const isCommunity = (gem: Gem) =>
+    gem.sources.some((source) => COMMUNITY_SOURCES.includes(source));
   const chosen = new Set<Gem>();
-  for (const gem of reddit.slice(0, 3)) chosen.add(gem);
-  for (const gem of atlas.slice(0, 3)) chosen.add(gem);
+  const communityTarget = Math.floor(limit / 2);
+  for (const gem of sorted.filter(isCommunity)) {
+    if (chosen.size >= communityTarget) break;
+    chosen.add(gem);
+  }
   for (const gem of sorted) {
     if (chosen.size >= limit) break;
     chosen.add(gem);
@@ -372,12 +471,13 @@ export async function getGems(city: string, limit = 12): Promise<Gem[]> {
   const cached = gemCache.get(key);
   if (cached && Date.now() - cached.at < GEM_TTL_MS)
     return selectWithVariety(cached.gems, limit);
-  const [places, atlas, reddit] = await Promise.all([
+  const [places, atlas, reddit, wikivoyage] = await Promise.all([
     fromPlaces(city).catch(() => []),
     fromAtlas(city).catch(() => []),
     fromReddit(city).catch(() => []),
+    fromWikivoyage(city).catch(() => []),
   ]);
-  const gems = mergeGems([places, atlas, reddit]);
+  const gems = mergeGems([places, atlas, reddit, wikivoyage]);
   gemCache.set(key, { gems, at: Date.now() });
   return selectWithVariety(gems, limit);
 }
