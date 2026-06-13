@@ -306,6 +306,32 @@ a { color: inherit; }
 .slash-item.active { background: rgba(69,201,138,.12); }
 .slash-cmd { flex: none; font-family: var(--font-mono), monospace; font-size: 13px; font-weight: 700; color: var(--r-accent); }
 .slash-desc { font-size: 12px; color: var(--r-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+/* Pinned message rail — surfaces an important message under the header. */
+.pinned-rail { display: flex; align-items: center; gap: 8px; width: min(1080px, 100%); margin: 8px auto 0; padding: 8px 12px; border: 1px solid var(--r-line); border-left: 3px solid var(--r-accent); border-radius: 10px; background: var(--r-surface-2); }
+.pinned-icon { flex: none; font-size: 12px; }
+.pinned-text { flex: 1; min-width: 0; font-size: 12px; color: var(--r-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.pinned-x { flex: none; border: 0; background: transparent; color: var(--r-faint); font-size: 12px; cursor: pointer; }
+.pinned-x:hover { color: var(--r-ink); }
+
+/* Swipe-to-reply preview above the composer. */
+.reply-preview { display: flex; align-items: center; gap: 10px; margin: 0 14px; padding: 8px 12px; border-left: 3px solid var(--r-accent); border-radius: 8px; background: var(--r-surface-2); }
+.reply-preview-body { display: flex; flex-direction: column; gap: 1px; min-width: 0; flex: 1; }
+.reply-preview-author { font-size: 11px; font-weight: 700; color: var(--r-accent); }
+.reply-preview-text { font-size: 12px; color: var(--r-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.reply-preview-x { flex: none; border: 0; background: transparent; color: var(--r-faint); font-size: 13px; cursor: pointer; }
+
+/* Long-press action sheet — a bottom drawer for touch interactions. */
+.sheet-backdrop { position: fixed; inset: 0; z-index: 90; display: flex; align-items: flex-end; background: rgba(4,8,6,.5); animation: lightboxIn .15s ease; }
+.action-sheet { width: 100%; display: flex; flex-direction: column; gap: 6px; padding: 10px 12px calc(12px + env(safe-area-inset-bottom)); border-radius: 18px 18px 0 0; border-top: 1px solid var(--r-line-strong); background: var(--r-surface); box-shadow: 0 -12px 40px rgba(0,0,0,.5); animation: sheetUp .22s cubic-bezier(.22,1,.36,1); }
+@keyframes sheetUp { from { transform: translateY(100%); } to { transform: translateY(0); } }
+@media (prefers-reduced-motion: reduce) { .action-sheet { animation: none; } }
+.sheet-emojis { display: flex; justify-content: space-around; padding: 6px; margin-bottom: 4px; border-bottom: 1px solid var(--r-line); }
+.sheet-emojis button { border: 0; background: transparent; font-size: 24px; padding: 4px 8px; border-radius: 10px; cursor: pointer; }
+.sheet-emojis button:active { background: rgba(255,255,255,.08); }
+.sheet-action { display: flex; align-items: center; gap: 10px; padding: 13px 14px; border: 0; border-radius: 12px; background: var(--r-surface-2); color: var(--r-ink); font: inherit; font-size: 15px; text-align: left; cursor: pointer; }
+.sheet-action:active { background: rgba(255,255,255,.06); }
+.sheet-cancel { margin-top: 2px; padding: 13px; border: 0; border-radius: 12px; background: transparent; color: var(--r-muted); font: inherit; font-weight: 700; font-size: 15px; cursor: pointer; }
 .composer-plus { position: relative; }
 .icon-btn.ghost { width: 44px; height: 46px; border-radius: 14px; border: 1px solid var(--r-line-strong); background: var(--r-surface-2); color: var(--r-ink); backdrop-filter: none; }
 .icon-btn.ghost:hover { background: rgba(255,255,255,.07); }
@@ -403,6 +429,8 @@ a { color: inherit; }
    desktop (the side panel shows them); shown on mobile so photos + per-stop
    pricing are visible there too. */
 .plans-feed { display: none; }
+.plan-carousel { display: flex; flex-direction: column; gap: 14px; }
+.carousel-dots { display: none; }
 
 /* Journey map — a Safar bubble with an animated route from departure to the
    winning destination, posted inline when the trip is decided. */
@@ -545,6 +573,14 @@ a { color: inherit; }
   .poll-inline { display: none; }
   .plans-feed { display: flex; flex-direction: column; gap: 14px; margin-top: 4px; }
   .journey-leaflet { height: 180px; }
+
+  /* Plan cards become a horizontal swipe carousel with a dot indicator. */
+  .plan-carousel { flex-direction: row; overflow-x: auto; gap: 12px; scroll-snap-type: x mandatory; -webkit-overflow-scrolling: touch; scrollbar-width: none; }
+  .plan-carousel::-webkit-scrollbar { display: none; }
+  .plan-carousel > .plan-card { flex: 0 0 86%; scroll-snap-align: center; }
+  .carousel-dots { display: flex; justify-content: center; gap: 6px; margin-top: 6px; }
+  .carousel-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--r-line-strong); transition: width .25s, background .25s; }
+  .carousel-dot.active { width: 18px; border-radius: 99px; background: var(--r-accent); }
 
   .quick-actions { padding: 8px 12px 0; }
   .composer {
