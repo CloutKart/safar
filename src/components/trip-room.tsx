@@ -54,6 +54,14 @@ function timeLabel(iso: string): string {
   });
 }
 
+function photoLabel(type: "hero" | "popular" | "hidden_gem" | "culture"): string {
+  return type === "hidden_gem"
+    ? "Hidden gem"
+    : type === "culture"
+      ? "Food"
+      : "Popular";
+}
+
 // The bot speaks light markdown (*bold*). Render that inline, preserving newlines.
 function renderText(text: string): ReactNode {
   return text.split(/(\*[^*]+\*)/g).map((part, index) =>
@@ -664,6 +672,23 @@ function PlanCard({
           <small>{plan.cost.live ? "live" : "estimate"}</small>
         </span>
       </header>
+      {plan.destinationImages && plan.destinationImages.length > 0 && (
+        <div className="plan-photos">
+          {plan.destinationImages.map((image) => (
+            <div className="plan-photo" key={image.url}>
+              {/* eslint-disable-next-line @next/next/no-img-element -- external dynamic photo URLs */}
+              <img
+                src={image.url}
+                alt={`${plan.destinationName} — ${image.type.replace("_", " ")}`}
+                loading="lazy"
+              />
+              {image.type !== "hero" && (
+                <span className="plan-photo-tag">{photoLabel(image.type)}</span>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
       <p className="plan-summary">{plan.summary}</p>
       <div className="plan-days">
         {plan.itinerary.map((day) => (
@@ -674,8 +699,13 @@ function PlanCard({
             <ul>
               {day.stops.map((stop, index) => (
                 <li key={index} className={`stop stop-${stop.kind}`}>
-                  {stop.kind === "hidden-gem" && <span className="gem">💎</span>}
                   <span className="stop-name">{stop.name}</span>
+                  {stop.kind === "hidden-gem" && (
+                    <span className="badge badge-hidden">💎 Hidden gem</span>
+                  )}
+                  {stop.kind === "sight" && (
+                    <span className="badge badge-popular">Popular</span>
+                  )}
                   {stop.note && <span className="stop-note"> — {stop.note}</span>}
                   {stop.approxInr != null && (
                     <span className="stop-cost">~{inr(stop.approxInr)}</span>

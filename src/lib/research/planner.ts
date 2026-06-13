@@ -12,6 +12,7 @@ import { generateStructured } from "@/lib/ai/client";
 import { researchDestination } from "@/lib/research/search";
 import { getPriceQuotes, type SupplierQuote } from "@/lib/research/pricing";
 import { getGems, gemKey, isHiddenGem, type Gem } from "@/lib/research/gems";
+import { planPhotos } from "@/lib/research/photos";
 
 function groupWeights(summary: TripSummary): Map<InterestTag, number> {
   const weights = new Map<InterestTag, number>();
@@ -149,9 +150,12 @@ function injectGems(
     // Inject genuinely lesser-known spots first — the headline sights are
     // already in the LLM's day plan.
     .sort((a, b) => Number(isHiddenGem(b)) - Number(isHiddenGem(a)));
-  return itinerary.map((day, index) => {
-    const gem = fresh[index];
-    if (!gem) return day;
+  // Inject one gem per day that still has room, keeping pacing (max ~5 stops).
+  let cursor = 0;
+  return itinerary.map((day) => {
+    if (day.stops.length >= 5 || cursor >= fresh.length) return day;
+    const gem = fresh[cursor];
+    cursor += 1;
     const isFood = gem.type === "food";
     return {
       ...day,
@@ -179,7 +183,12 @@ const PLANNER_SYSTEM = `You are Safar, a sharp India travel planner who knows pl
 Rules:
 - Output STRICT JSON only, matching: {"summary": string, "itinerary": [{"day": number, "title": string, "stops": [{"name": string, "kind": "sight"|"hidden-gem"|"activity"|"food"|"transport", "note": string, "approxInr": number|null}], "stay": {"name": string, "area": string, "approxInrPerNight": number|null} | null}]}.
 - Produce EXACTLY the requested number of days.
-- Each day: 3 to 5 stops. Mix well-known sights with at least one genuine lesser-known "hidden-gem", and at least one "food" stop naming a real local dish or the type of eatery.
+- Shape it as a JOURNEY with a realistic arc, not a checklist:
+  - Day 1 (arrival): keep it LIGHT — 2-3 easy stops near the stay (check-in, a relaxed local walk, an unhurried dinner). Account for travel fatigue; no long excursions.
+  - Middle days (exploration/activity): the fuller days — 4-5 stops of signature experiences. Keep each day DOABLE: group stops that are geographically close (no zig-zagging), keep active sightseeing under ~8 hours, and include one slower moment (a cafe, a sunset, a leisurely meal) so it never feels rushed.
+  - Last day (departure): keep it RELAXED — 2-3 stops max, a final easy highlight or some shopping, then wind down for the journey home.
+  - For longer trips, vary the rhythm: mix exploration days with at least one chill/lighter day so it never feels exhausting or wastefully stretched.
+- Every day must blend POPULAR must-see landmarks with at least one genuine lesser-known "hidden-gem", and at least one "food" stop naming a real local dish or eatery. Order stops in a natural daily flow (morning → afternoon → evening). Big sights (forts, palaces, treks) take half a day — budget time for them and don't overstuff.
 - You are given "localGems" — real, verified local spots for this place. Prefer them for your hidden-gem and sightseeing stops, weaving them into the days with a short reason; only invent a spot if the gems don't cover a day.
 - Name a realistic mid-range "stay" per day (a real, plausible property/area for that place), with a per-night per-person estimate.
 - "approxInr" is a rough PER-PERSON estimate for that stop (entry, ride, meal). Use null when free. These are estimates, not quotes; keep them realistic for India and within the group's budget.
@@ -381,15 +390,19 @@ export async function generatePlans(
 
       // LLM-written specifics, grounded in the catalog + pricing + research.
       // Falls back to a generic template when no LLM is configured.
-      const detail = await enrichItinerary({
-        destination,
-        summary,
-        angle,
-        days,
-        quotes,
-        research,
-        gems,
-      });
+      // Run the LLM and photo lookups concurrently.
+      const [detail, destinationImages] = await Promise.all([
+        enrichItinerary({
+          destination,
+          summary,
+          angle,
+          days,
+          quotes,
+          research,
+          gems,
+        }),
+        planPhotos(destination.name, gems).catch(() => []),
+      ]);
       const baseItinerary =
         detail?.itinerary ?? fallbackItinerary(destination, days, angle);
       // When a live stay provider returned a real bookable hotel, use it for
@@ -456,6 +469,7 @@ export async function generatePlans(
           deepLinks: quotes.map((quote) => quote.deepLink),
           breakdown: { transportInr, stayInr, activitiesInr, foodInr },
         },
+        destinationImages,
       });
     }),
   );

@@ -158,6 +158,15 @@ export const GeneratedPlanSchema = z.object({
   itinerary: z.array(ItineraryDaySchema),
   sources: z.array(SourceSchema),
   cost: CostEstimateSchema,
+  // Four reference images: hero, a popular sight, a hidden gem, food/culture.
+  destinationImages: z
+    .array(
+      z.object({
+        type: z.enum(["hero", "popular", "hidden_gem", "culture"]),
+        url: z.string().url(),
+      }),
+    )
+    .default([]),
 });
 export type GeneratedPlan = z.infer<typeof GeneratedPlanSchema>;
 

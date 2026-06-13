@@ -28,6 +28,8 @@ export interface Gem {
   mapsUrl: string | null;
   lat: number | null;
   lng: number | null;
+  // Google Places photo resource name (resolved to an image URL at plan time).
+  photoRef: string | null;
 }
 
 const GEM_UA = "Safar/1.0 (group trip planner)";
@@ -53,7 +55,7 @@ function normalizeType(value: string): GemType {
 
 // ── Google Places (New) ──────────────────────────────────────────────────────
 const PLACES_FIELDS =
-  "places.displayName,places.rating,places.userRatingCount,places.types,places.editorialSummary,places.googleMapsUri,places.location,places.formattedAddress";
+  "places.displayName,places.rating,places.userRatingCount,places.types,places.editorialSummary,places.googleMapsUri,places.location,places.formattedAddress,places.photos";
 
 // Real "places to visit", not vendors. Services/lodging are dropped; a place
 // must have an attraction (or food) type to count.
@@ -153,6 +155,8 @@ async function fromPlaces(city: string): Promise<Gem[]> {
         mapsUrl: (place.googleMapsUri as string | undefined) ?? null,
         lat: location?.latitude ?? null,
         lng: location?.longitude ?? null,
+        photoRef:
+          (place.photos as Array<{ name?: string }> | undefined)?.[0]?.name ?? null,
       });
     }
   }
@@ -236,6 +240,7 @@ async function fromAtlas(city: string): Promise<Gem[]> {
       mapsUrl: url,
       lat: null,
       lng: null,
+      photoRef: null,
     });
     if (gems.length >= 14) break;
   }
@@ -300,6 +305,7 @@ async function fromReddit(city: string): Promise<Gem[]> {
     mapsUrl: null,
     lat: null,
     lng: null,
+    photoRef: null,
   }));
 }
 
@@ -392,6 +398,7 @@ async function fromWikivoyage(city: string): Promise<Gem[]> {
           : null,
         lat: hasCoords ? lat : null,
         lng: hasCoords ? lng : null,
+        photoRef: null,
       });
       added += 1;
     }
