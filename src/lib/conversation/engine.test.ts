@@ -100,6 +100,45 @@ describe("conversation-native trip lifecycle", () => {
     expect((await store.getGroup(group!.id))?.status).toBe("completed");
   });
 
+  it("opens voting from the presence of plans even if the status row desynced", async () => {
+    // Drive the group to plans (status -> voting, 3 plans saved).
+    await processNormalizedEvent(
+      message("d1", "wa-asha", "Asha", "From DEL, I like cafes. Budget INR 12000 max."),
+      store,
+    );
+    await processNormalizedEvent(
+      message("d2", "wa-kabir", "Kabir", "Trekking and adventure, 3 days."),
+      store,
+    );
+    await processNormalizedEvent(
+      message("d3", "wa-asha", "Asha", "Safar, summarize the trip"),
+      store,
+    );
+    await processNormalizedEvent(message("d4", "wa-asha", "Asha", "approve"), store);
+    await processNormalizedEvent(message("d5", "wa-kabir", "Kabir", "approve"), store);
+    const group = await store.getGroupByWaId("group-demo");
+    expect(await store.getPlans(group!.id)).toHaveLength(3);
+
+    // Simulate the Supabase split-write desync: plans are saved, but the group
+    // row's status never advanced to "voting".
+    await store.updateGroup(group!.id, { status: "researching" });
+    expect((await store.getGroup(group!.id))?.status).toBe("researching");
+
+    // A vote must still be accepted, and self-heal the row back to "voting".
+    await processNormalizedEvent(message("d6", "wa-asha", "Asha", "vote 2"), store);
+    expect((await store.getGroup(group!.id))?.status).toBe("voting");
+    expect((await store.getVoteResult(group!.id, 1)).votesCast).toBe(1);
+  });
+
+  it("only rejects votes before any plans exist", async () => {
+    await processNormalizedEvent(message("e1", "wa-asha", "Asha", "vote 1"), store);
+    const group = await store.getGroupByWaId("group-demo");
+    const thread = await store.getThread(group!.id);
+    const lastBot = [...thread].reverse().find((m) => m.participantId === null);
+    expect(lastBot?.text).toContain("Voting is not open yet.");
+    expect((await store.getGroup(group!.id))?.status).not.toBe("voting");
+  });
+
   it("supersedes a participant's corrected fact", async () => {
     await processNormalizedEvent(
       message("c1", "wa-asha", "Asha", "We can do 3 days"),
