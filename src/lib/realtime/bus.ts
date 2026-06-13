@@ -1,9 +1,33 @@
 import type { ReactionSummary, ThreadMessage } from "@/lib/store/types";
+import { env } from "@/lib/env";
 
 // Events pushed to every open browser tab in a trip room, in real time.
 export type RoomEvent =
   | { type: "message"; message: ThreadMessage }
-  | { type: "reaction"; messageId: string; reactions: ReactionSummary[] };
+  | { type: "reaction"; messageId: string; reactions: ReactionSummary[] }
+  | { type: "typing"; who: string; on: boolean };
+
+// Mirror every event to a Supabase Realtime channel so it reaches tabs on other
+// serverless instances / devices (the in-process bus only covers one instance).
+function broadcastToSupabase(groupId: string, event: RoomEvent): void {
+  if (!env.NEXT_PUBLIC_SUPABASE_URL || !env.SUPABASE_SERVICE_ROLE_KEY) return;
+  void fetch(`${env.NEXT_PUBLIC_SUPABASE_URL}/realtime/v1/api/broadcast`, {
+    method: "POST",
+    headers: {
+      apikey: env.SUPABASE_SERVICE_ROLE_KEY,
+      Authorization: `Bearer ${env.SUPABASE_SERVICE_ROLE_KEY}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      messages: [
+        { topic: `room-${groupId}`, event: "room_event", payload: event, private: false },
+      ],
+    }),
+    signal: AbortSignal.timeout(5000),
+  }).catch(() => {
+    // Best-effort; same-instance tabs already got it via the in-process bus.
+  });
+}
 
 type Listener = (event: RoomEvent) => void;
 
@@ -22,6 +46,7 @@ function registry(): Map<string, Set<Listener>> {
 }
 
 export function publishRoomEvent(groupId: string, event: RoomEvent): void {
+  broadcastToSupabase(groupId, event);
   const listeners = registry().get(groupId);
   if (!listeners) return;
   for (const listener of listeners) {

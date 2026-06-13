@@ -10,11 +10,25 @@ import {
   type FormEvent,
   type ReactNode,
 } from "react";
+import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import type { GeneratedPlan } from "@/lib/domain";
 import type { ReactionSummary, ThreadMessage } from "@/lib/store/types";
 import type { RoomState } from "@/lib/trip/room";
 import { vibesLabel } from "@/lib/trip/vibe";
 import { VibeStage } from "@/components/vibe-scene";
+
+// Client-side Supabase Realtime — cross-device live updates + typing. Falls back
+// to SSE when not configured. Created once per tab.
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+const supabaseAnon = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+let realtimeClient: SupabaseClient | null = null;
+function getRealtimeClient(): SupabaseClient | null {
+  if (!supabaseUrl || !supabaseAnon) return null;
+  realtimeClient ??= createClient(supabaseUrl, supabaseAnon, {
+    realtime: { params: { eventsPerSecond: 5 } },
+  });
+  return realtimeClient;
+}
 
 const REACTION_EMOJIS = ["👍", "❤️", "😂", "🎉", "🔥"];
 
@@ -35,7 +49,8 @@ const AVATAR_COLORS = [
 
 type RoomEvent =
   | { type: "message"; message: ThreadMessage }
-  | { type: "reaction"; messageId: string; reactions: ReactionSummary[] };
+  | { type: "reaction"; messageId: string; reactions: ReactionSummary[] }
+  | { type: "typing"; who: string; on: boolean };
 
 function avatarColor(id: string): string {
   let hash = 0;
@@ -123,10 +138,13 @@ export function TripRoom({
     displayName: string;
   }>({ participantId: null, displayName: "" });
   const { participantId, displayName } = identity;
+  const groupId = initialState.groupId;
   const [draftName, setDraftName] = useState("");
   const [text, setText] = useState("");
   const [sending, setSending] = useState(false);
   const [botThinking, setBotThinking] = useState(false);
+  const [typingActors, setTypingActors] = useState<string[]>([]);
+  const channelRef = useRef<ReturnType<SupabaseClient["channel"]> | null>(null);
   const [paletteFor, setPaletteFor] = useState<string | null>(null);
   const [emojiOpen, setEmojiOpen] = useState(false);
   const [copied, setCopied] = useState(false);
@@ -178,19 +196,17 @@ export function TripRoom({
     mergeMessages(fresh.thread);
   }, [slug, mergeMessages]);
 
-  // Live updates. EventSource reconnects on its own; on each (re)connect we
-  // refetch the snapshot to catch anything missed while disconnected.
-  useEffect(() => {
-    const source = new EventSource(`/api/trip/${slug}/stream`);
-    source.onopen = () => {
-      void refetchState();
-    };
-    source.onmessage = (event) => {
-      const payload = JSON.parse(event.data) as RoomEvent;
+  // One handler for both transports (Supabase Realtime broadcast and SSE).
+  const handleRoomEvent = useCallback(
+    (payload: RoomEvent) => {
       if (payload.type === "message") {
         mergeMessages([payload.message]);
+        setTypingActors((prev) =>
+          prev.filter((name) => name !== (payload.message.displayName ?? "")),
+        );
         if (payload.message.participantId === null) {
           setBotThinking(false);
+          setTypingActors((prev) => prev.filter((name) => name !== "Safar"));
           void refetchState();
         }
       } else if (payload.type === "reaction") {
@@ -201,10 +217,43 @@ export function TripRoom({
           next.set(payload.messageId, { ...existing, reactions: payload.reactions });
           return next;
         });
+      } else if (payload.type === "typing") {
+        setTypingActors((prev) => {
+          const others = prev.filter((name) => name !== payload.who);
+          return payload.on ? [...others, payload.who] : others;
+        });
       }
+    },
+    [mergeMessages, refetchState],
+  );
+
+  // Cross-device live updates via Supabase Realtime (works across serverless
+  // instances). Falls back to SSE when Supabase isn't configured.
+  const client = getRealtimeClient();
+  useEffect(() => {
+    if (!client) return;
+    const channel = client.channel(`room-${groupId}`);
+    channel.on("broadcast", { event: "room_event" }, ({ payload }) => {
+      handleRoomEvent(payload as RoomEvent);
+    });
+    channel.subscribe((status) => {
+      if (status === "SUBSCRIBED") void refetchState();
+    });
+    channelRef.current = channel;
+    return () => {
+      channelRef.current = null;
+      void client.removeChannel(channel);
     };
+  }, [client, groupId, handleRoomEvent, refetchState]);
+
+  useEffect(() => {
+    if (client) return; // Realtime handles it
+    const source = new EventSource(`/api/trip/${slug}/stream`);
+    source.onopen = () => void refetchState();
+    source.onmessage = (event) =>
+      handleRoomEvent(JSON.parse(event.data) as RoomEvent);
     return () => source.close();
-  }, [slug, mergeMessages, refetchState]);
+  }, [client, slug, handleRoomEvent, refetchState]);
 
   const sorted = useMemo(
     () =>
@@ -253,12 +302,33 @@ export function TripRoom({
     [participantId, displayName, slug, refetchState],
   );
 
+  const typingTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const broadcastTyping = useCallback(
+    (on: boolean) => {
+      const channel = channelRef.current;
+      if (!channel || !displayName) return;
+      void channel.send({
+        type: "broadcast",
+        event: "room_event",
+        payload: { type: "typing", who: displayName, on },
+      });
+    },
+    [displayName],
+  );
+  const onTyping = useCallback(() => {
+    broadcastTyping(true);
+    if (typingTimerRef.current) clearTimeout(typingTimerRef.current);
+    typingTimerRef.current = setTimeout(() => broadcastTyping(false), 2500);
+  }, [broadcastTyping]);
+
   async function sendDraft(event: FormEvent) {
     event.preventDefault();
     const body = text.trim();
     if (!body || sending || !participantId || !displayName) return;
     setText("");
     setEmojiOpen(false);
+    if (typingTimerRef.current) clearTimeout(typingTimerRef.current);
+    broadcastTyping(false);
     // Optimistic: render the message instantly, before the server round-trip.
     // It's reconciled away when the real message arrives over SSE / refetch.
     const pendingId = `pending:${crypto.randomUUID()}`;
@@ -514,7 +584,7 @@ export function TripRoom({
                 </article>
               );
             })}
-            {botThinking && (
+            {(botThinking || typingActors.includes("Safar")) && (
               <article className="msg msg-bot msg-typing">
                 <span className="msg-avatar bot">S</span>
                 <div className="msg-main">
@@ -526,6 +596,18 @@ export function TripRoom({
                   </div>
                 </div>
               </article>
+            )}
+            {typingActors.filter((name) => name !== "Safar" && name !== displayName)
+              .length > 0 && (
+              <p className="human-typing">
+                {typingActors
+                  .filter((name) => name !== "Safar" && name !== displayName)
+                  .join(", ")}{" "}
+                {typingActors.filter((name) => name !== "Safar" && name !== displayName)
+                  .length === 1
+                  ? "is typing…"
+                  : "are typing…"}
+              </p>
             )}
             {sorted.length === 0 && (
               <p className="chat-empty">
@@ -620,6 +702,7 @@ export function TripRoom({
             </div>
             <input
               className="composer-input"
+              onInput={onTyping}
               value={text}
               onChange={(event) => setText(event.target.value)}
               placeholder="Type your message…"

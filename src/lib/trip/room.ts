@@ -6,6 +6,7 @@ import { tripTitle } from "@/lib/trip/title";
 
 export interface RoomState {
   slug: string;
+  groupId: string;
   subject: string;
   title: string;
   status: StoredGroup["status"];
@@ -53,6 +54,7 @@ export async function loadRoomState(slug: string): Promise<RoomState | null> {
   });
   return {
     slug,
+    groupId: group.id,
     subject: group.subject,
     title,
     status: group.status,

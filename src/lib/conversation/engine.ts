@@ -21,6 +21,7 @@ import type {
   StoredParticipant,
 } from "@/lib/store/types";
 import { sendWeb } from "@/lib/transport/web";
+import { publishRoomEvent } from "@/lib/realtime/bus";
 
 const DISCLOSURE = `*Safar is now coordinating this trip.*
 
@@ -100,9 +101,15 @@ async function startResearch(
     group,
     "Majority reached. I’m checking the curated destination catalog, current access information, traveller reports, and available supplier prices. I’ll return with three distinct plans.",
   );
-  const plans = await generatePlans(summary.content);
-  await store.savePlans(group.id, summary.id, plans);
-  await send(store, group, formatPlans(plans));
+  // Show "Safar is typing" to everyone while the (slow) planning runs.
+  publishRoomEvent(group.id, { type: "typing", who: "Safar", on: true });
+  try {
+    const plans = await generatePlans(summary.content);
+    await store.savePlans(group.id, summary.id, plans);
+    await send(store, group, formatPlans(plans));
+  } finally {
+    publishRoomEvent(group.id, { type: "typing", who: "Safar", on: false });
+  }
 }
 
 function forwarded(message: NormalizedInboundMessage): boolean {

@@ -254,6 +254,7 @@ a { color: inherit; }
 .typing-bubble span:nth-child(3) { animation-delay: .36s; }
 @keyframes typing-dot { 0%, 60%, 100% { opacity: .3; transform: translateY(0); } 30% { opacity: 1; transform: translateY(-3px); } }
 @media (prefers-reduced-motion: reduce) { .typing-bubble span { animation: none; } }
+.human-typing { margin: -4px 0 8px 38px; font-size: 11px; color: var(--r-muted); font-style: italic; }
 
 /* Reactions: small chips floating off the bubble's lower corner */
 .bubble-reactions { position: absolute; bottom: -11px; right: 8px; z-index: 2; display: flex; gap: 4px; }

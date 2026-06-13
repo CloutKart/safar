@@ -6,6 +6,9 @@ const envSchema = z.object({
   NEXT_PUBLIC_APP_URL: optionalUrl,
   NEXT_PUBLIC_SUPABASE_URL: optionalUrl,
   SUPABASE_SERVICE_ROLE_KEY: z.string().optional(),
+  // Public anon key — enables client-side Supabase Realtime (cross-device live
+  // updates + typing). Safe to expose; without it the app falls back to SSE.
+  NEXT_PUBLIC_SUPABASE_ANON_KEY: z.string().optional(),
   LLM_API_URL: optionalUrl,
   LLM_API_KEY: z.string().optional(),
   LLM_MODEL: z.string().optional(),
