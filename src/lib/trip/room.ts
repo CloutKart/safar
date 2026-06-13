@@ -15,6 +15,8 @@ export interface RoomState {
   votingClosesAt: string | null;
   // Where the group is travelling from — used by the journey map and chips.
   departureCities: string[];
+  // Travel window — used for the per-plan weather lookup.
+  tripDates: { start: string | null; end: string | null };
   summaryStatus: "review" | "approved" | "superseded" | null;
   vibe: Vibe;
   vibes: Vibe[];
@@ -67,6 +69,10 @@ export async function loadRoomState(slug: string): Promise<RoomState | null> {
     runoffOptions: group.runoffOptions,
     votingClosesAt: group.votingClosesAt,
     departureCities: summary?.content.departureCities ?? [],
+    tripDates: {
+      start: summary?.content.dates.start ?? null,
+      end: summary?.content.dates.end ?? null,
+    },
     summaryStatus: summary?.status ?? null,
     vibe: vibes[0],
     vibes,

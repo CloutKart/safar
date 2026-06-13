@@ -319,6 +319,18 @@ a { color: inherit; }
 /* Plans & voting */
 .plans-panel { display: flex; flex-direction: column; gap: 14px; max-height: calc(100vh - 276px); overflow-y: auto; padding: 18px; border: 1px solid var(--r-line); border-radius: 22px; background: var(--r-surface); }
 .plans-panel h2 { margin: 0; font-size: 1.15rem; letter-spacing: -.02em; color: var(--r-ink); }
+.plans-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.cmp-toggle { flex: none; padding: 6px 12px; border-radius: 99px; border: 1px solid var(--r-line-strong); background: var(--r-surface-2); color: var(--r-ink); font-weight: 700; font-size: 12px; cursor: pointer; }
+.cmp-toggle:hover { background: rgba(255,255,255,.06); }
+.plan-compare { overflow-x: auto; }
+.cmp-grid { display: grid; gap: 1px; background: var(--r-line); border: 1px solid var(--r-line); border-radius: 12px; overflow: hidden; min-width: 280px; }
+.cmp-corner { background: var(--r-surface-2); }
+.cmp-head { display: flex; align-items: center; gap: 6px; padding: 9px 8px; background: var(--r-surface-2); color: var(--r-ink); font-weight: 700; font-size: 12px; }
+.cmp-num { display: grid; place-items: center; width: 18px; height: 18px; flex: none; border-radius: 50%; background: linear-gradient(135deg, var(--r-green), var(--r-green-deep)); color: #fff; font-size: 10px; font-weight: 800; }
+.cmp-label { padding: 8px; background: var(--r-surface-2); color: var(--r-muted); font-size: 11px; font-weight: 600; }
+.cmp-cell { padding: 8px; background: var(--r-surface); color: var(--r-ink); font-size: 12px; font-family: var(--font-mono), monospace; }
+.cmp-cell.cmp-best { background: rgba(69,201,138,.14); color: var(--r-accent); font-weight: 700; }
+.cmp-cell.cmp-day { font-family: inherit; font-size: 11px; color: var(--r-muted); line-height: 1.4; }
 .plans-empty { color: var(--r-muted); font-size: 13px; line-height: 1.6; }
 .vote-status { margin: 0; font-family: var(--font-mono), monospace; font-size: 12px; color: var(--r-accent); }
 .plan-card { display: flex; flex-direction: column; gap: 9px; padding: 15px; border-radius: 16px; border: 1px solid var(--r-line); background: var(--r-surface-2); }
@@ -330,6 +342,14 @@ a { color: inherit; }
 .plan-card header p { margin: 2px 0 0; font-size: 11px; color: var(--r-muted); text-transform: capitalize; }
 .plan-cost { text-align: right; font-weight: 800; font-size: 12px; white-space: nowrap; color: var(--r-ink); }
 .plan-cost small { display: block; font-weight: 600; font-size: 9px; letter-spacing: .08em; color: var(--r-faint); text-transform: uppercase; }
+.plan-cost-line { display: inline-flex; align-items: baseline; gap: 6px; margin-top: 5px; font-weight: 800; font-size: 12px; color: var(--r-ink); white-space: nowrap; }
+.plan-cost-line small { font-weight: 600; font-size: 9px; letter-spacing: .08em; color: var(--r-faint); text-transform: uppercase; }
+.match-ring { position: relative; flex: none; display: grid; place-items: center; width: 38px; height: 38px; }
+.match-ring svg { transform: rotate(-90deg); }
+.match-ring-track { fill: none; stroke: var(--r-line); stroke-width: 3.5; }
+.match-ring-fill { fill: none; stroke: var(--r-accent); stroke-width: 3.5; stroke-linecap: round; transition: stroke-dashoffset 1s cubic-bezier(.22,1,.36,1); }
+.match-ring-num { position: absolute; font-size: 11px; font-weight: 800; color: var(--r-ink); }
+@media (prefers-reduced-motion: reduce) { .match-ring-fill { transition: none; } }
 .plan-photos { display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px; border-radius: 12px; overflow: hidden; }
 .plan-photo { position: relative; aspect-ratio: 1 / 1; overflow: hidden; padding: 0; border: 0; background: rgba(255,255,255,.04); cursor: zoom-in; }
 .plan-photo img { width: 100%; height: 100%; object-fit: cover; display: block; transition: transform .28s ease; }
@@ -340,10 +360,19 @@ a { color: inherit; }
 .badge-hidden { background: rgba(120,200,160,.16); color: #8fe3b8; }
 .badge-popular { background: rgba(255,255,255,.07); color: var(--r-muted); }
 .plan-match { margin-left: 8px; font-size: 10px; font-weight: 600; padding: 1px 7px; border-radius: 999px; background: rgba(69,201,138,.16); color: var(--r-accent); text-transform: none; letter-spacing: 0; }
+.plan-weather { margin: 0; display: inline-flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 600; color: var(--r-ink); }
+.wx-icon { font-size: 13px; }
+.wx-typical { font-size: 9px; letter-spacing: .04em; text-transform: uppercase; padding: 1px 6px; border-radius: 99px; background: rgba(255,255,255,.06); color: var(--r-faint); }
 .plan-why { margin: 0; font-size: 11.5px; line-height: 1.5; color: var(--r-muted); }
 .plan-why strong { color: var(--r-accent); font-weight: 600; }
 .plan-summary { margin: 0; font-size: 12.5px; line-height: 1.55; color: var(--r-muted); }
 .plan-days { display: flex; flex-direction: column; gap: 11px; }
+.timeline-toggle { align-self: flex-start; padding: 4px 11px; border-radius: 99px; border: 1px solid var(--r-line); background: transparent; color: var(--r-muted); font-size: 11px; font-weight: 600; cursor: pointer; }
+.timeline-toggle:hover { color: var(--r-ink); border-color: var(--r-line-strong); }
+/* Timeline view: days become side-by-side columns to read pacing at a glance. */
+.plan-days.timeline { flex-direction: row; overflow-x: auto; gap: 10px; padding-bottom: 6px; scroll-snap-type: x mandatory; }
+.plan-days.timeline .plan-day { flex: 0 0 190px; scroll-snap-align: start; padding: 10px; border: 1px solid var(--r-line); border-radius: 12px; background: var(--r-surface); }
+.plan-days.timeline .plan-day-title { border-bottom: 1px solid var(--r-line); padding-bottom: 6px; margin-bottom: 2px; }
 .plan-day { display: flex; flex-direction: column; gap: 4px; }
 .plan-day-title { margin: 0; font-size: 12px; color: var(--r-ink); }
 .plan-day-title strong { color: var(--r-accent); }
@@ -374,6 +403,26 @@ a { color: inherit; }
    desktop (the side panel shows them); shown on mobile so photos + per-stop
    pricing are visible there too. */
 .plans-feed { display: none; }
+
+/* Journey map — a Safar bubble with an animated route from departure to the
+   winning destination, posted inline when the trip is decided. */
+.journey-msg { max-width: 100%; align-self: stretch; }
+.journey-msg .msg-main { width: 100%; }
+.journey-map { width: 100%; max-width: 600px; padding: 6px; }
+.journey-leaflet { width: 100%; height: 240px; border-radius: 12px; overflow: hidden; background: var(--r-surface); }
+.journey-fallback { display: grid; place-items: center; color: var(--r-muted); font-size: 13px; }
+.journey-leaflet .leaflet-container { background: #0e1714; font: inherit; }
+.journey-leaflet .leaflet-control-attribution { background: rgba(8,14,12,.6); color: var(--r-faint); font-size: 9px; }
+.journey-leaflet .leaflet-control-attribution a { color: var(--r-muted); }
+.journey-footer { display: flex; flex-direction: column; gap: 2px; padding: 9px 6px 3px; }
+.journey-route { font-size: 14px; font-weight: 500; color: var(--r-ink); }
+.journey-sub { font-size: 11.5px; color: var(--r-muted); }
+.journey-pin { position: relative; }
+.journey-pin-dot { position: absolute; inset: 5px; border-radius: 50%; background: #1D9E75; border: 2px solid #eafff5; box-shadow: 0 0 0 2px rgba(29,158,117,.5); animation: journeyPop .32s cubic-bezier(.34,1.56,.64,1) both; }
+.journey-pin-ring { position: absolute; inset: 0; border-radius: 50%; border: 2px solid #1D9E75; opacity: .7; animation: journeyRing 1.6s ease-out infinite; }
+@keyframes journeyPop { 0% { transform: scale(0); } 70% { transform: scale(1.1); } 100% { transform: scale(1); } }
+@keyframes journeyRing { 0% { transform: scale(.5); opacity: .7; } 100% { transform: scale(1.6); opacity: 0; } }
+@media (prefers-reduced-motion: reduce) { .journey-pin-ring { animation: none; } }
 
 /* Photo lightbox — tap a plan photo to enlarge it full-screen. */
 .lightbox { position: fixed; inset: 0; z-index: 100; display: grid; place-items: center; padding: 24px; background: rgba(4,8,6,.88); backdrop-filter: blur(6px); cursor: zoom-out; animation: lightboxIn .18s ease; }
@@ -495,6 +544,7 @@ a { color: inherit; }
   .plans-panel { display: none; }
   .poll-inline { display: none; }
   .plans-feed { display: flex; flex-direction: column; gap: 14px; margin-top: 4px; }
+  .journey-leaflet { height: 180px; }
 
   .quick-actions { padding: 8px 12px 0; }
   .composer {
