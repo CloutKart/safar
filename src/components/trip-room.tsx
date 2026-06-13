@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import {
+  Fragment,
   useCallback,
   useEffect,
   useMemo,
@@ -17,6 +18,9 @@ import type { ReactionSummary, ThreadMessage } from "@/lib/store/types";
 import type { RoomState } from "@/lib/trip/room";
 import { vibesLabel } from "@/lib/trip/vibe";
 import { VibeStage } from "@/components/vibe-scene";
+import { JourneyMapMessage } from "@/components/journey-map";
+import { lookupCoords } from "@/lib/cityCoords";
+import { fetchWeather, type WeatherSummary } from "@/lib/weather";
 
 // Client-side Supabase Realtime — cross-device live updates + typing. Falls back
 // to SSE when not configured. Created once per tab.
@@ -217,6 +221,7 @@ export function TripRoom({
   const [myVote, setMyVote] = useState<number | null>(null);
   const [lightbox, setLightbox] = useState<{ url: string; alt: string } | null>(null);
   const [slashIndex, setSlashIndex] = useState(0);
+  const [compareOpen, setCompareOpen] = useState(false);
   const chatRef = useRef<HTMLDivElement>(null);
 
   // Browser-local identity: a persistent id + a display name asked once. Loaded
@@ -524,6 +529,7 @@ export function TripRoom({
         state.status === "completed" &&
         state.vote?.winner?.optionNumber === plan.optionNumber
       }
+      tripDates={state.tripDates}
       onVote={() => postMessage(`vote ${plan.optionNumber}`)}
       onOpenPhoto={(url, alt) => setLightbox({ url, alt })}
     />
@@ -833,8 +839,29 @@ export function TripRoom({
             )}
             {hasPlans && (
               <div className="plans-feed">
-                {state.plans.map(renderPlan)}
+                {state.plans.length > 1 && (
+                  <button
+                    type="button"
+                    className="cmp-toggle"
+                    onClick={() => setCompareOpen((open) => !open)}
+                  >
+                    {compareOpen ? "← Back to cards" : "Compare side-by-side"}
+                  </button>
+                )}
+                {compareOpen ? (
+                  <PlanCompare plans={state.plans} />
+                ) : (
+                  state.plans.map(renderPlan)
+                )}
               </div>
+            )}
+            {state.status === "completed" && state.vote?.winner && (
+              <JourneyMapMessage
+                departure={state.departureCities[0] ?? null}
+                destinationSlug={state.vote.winner.content.destinationSlug}
+                destinationName={state.vote.winner.content.destinationName}
+                planLabel={state.vote.winner.content.title}
+              />
             )}
           </div>
 
@@ -919,7 +946,18 @@ export function TripRoom({
         </section>
 
         <aside className={`plans-panel${hasPlans ? "" : " empty"}`}>
-          <h2>Plans &amp; voting</h2>
+          <div className="plans-head">
+            <h2>Plans &amp; voting</h2>
+            {state.plans.length > 1 && (
+              <button
+                type="button"
+                className="cmp-toggle"
+                onClick={() => setCompareOpen((open) => !open)}
+              >
+                {compareOpen ? "Cards" : "Compare"}
+              </button>
+            )}
+          </div>
           {!hasPlans && (
             <p className="plans-empty">
               Once the group approves a summary, Safar researches and posts three
@@ -934,7 +972,11 @@ export function TripRoom({
                 : ""}
             </p>
           )}
-          {state.plans.map(renderPlan)}
+          {compareOpen ? (
+            <PlanCompare plans={state.plans} />
+          ) : (
+            state.plans.map(renderPlan)
+          )}
         </aside>
       </div>
 
@@ -963,6 +1005,142 @@ export function TripRoom({
   );
 }
 
+const inrShort = (value: number) => `₹${value.toLocaleString("en-IN")}`;
+const hiddenGemCount = (plan: GeneratedPlan) =>
+  plan.itinerary.flatMap((day) => day.stops).filter((stop) => stop.kind === "hidden-gem").length;
+
+// Lines the three plans up attribute-by-attribute so voters can compare budget
+// vs budget, Day 1 vs Day 1, match vs match — the best cell per row highlighted.
+function PlanCompare({ plans }: { plans: GeneratedPlan[] }) {
+  const maxBest = (values: number[]) => Math.max(...values);
+  const minBest = (values: number[]) => Math.min(...values);
+  const rows: {
+    label: string;
+    values: number[];
+    best: ((values: number[]) => number) | null;
+    render: (value: number) => string;
+  }[] = [
+    { label: "Match", values: plans.map((p) => p.matchScore), best: maxBest, render: (v) => `${v}%` },
+    { label: "Per person", values: plans.map((p) => p.cost.likelyInr), best: minBest, render: inrShort },
+    { label: "Days", values: plans.map((p) => p.itinerary.length), best: null, render: (v) => `${v}` },
+    { label: "Hidden gems", values: plans.map(hiddenGemCount), best: maxBest, render: (v) => `${v}` },
+    { label: "Transport", values: plans.map((p) => p.cost.breakdown?.transportInr ?? 0), best: minBest, render: inrShort },
+    { label: "Stay", values: plans.map((p) => p.cost.breakdown?.stayInr ?? 0), best: minBest, render: inrShort },
+    { label: "Food", values: plans.map((p) => p.cost.breakdown?.foodInr ?? 0), best: minBest, render: inrShort },
+  ];
+  const maxDays = Math.max(...plans.map((p) => p.itinerary.length));
+  return (
+    <div className="plan-compare">
+      <div
+        className="cmp-grid"
+        style={{ gridTemplateColumns: `auto repeat(${plans.length}, minmax(0, 1fr))` }}
+      >
+        <div className="cmp-corner" />
+        {plans.map((plan) => (
+          <div className="cmp-head" key={plan.optionNumber}>
+            <span className="cmp-num">{plan.optionNumber}</span>
+            {plan.destinationName}
+          </div>
+        ))}
+        {rows.map((row) => {
+          const best = row.best ? row.best(row.values) : null;
+          return (
+            <Fragment key={row.label}>
+              <div className="cmp-label">{row.label}</div>
+              {row.values.map((value, index) => (
+                <div
+                  key={index}
+                  className={`cmp-cell${best != null && value === best ? " cmp-best" : ""}`}
+                >
+                  {row.render(value)}
+                </div>
+              ))}
+            </Fragment>
+          );
+        })}
+        {Array.from({ length: maxDays }).map((_, dayIndex) => (
+          <Fragment key={`day-${dayIndex}`}>
+            <div className="cmp-label">Day {dayIndex + 1}</div>
+            {plans.map((plan, index) => (
+              <div key={index} className="cmp-cell cmp-day">
+                {plan.itinerary[dayIndex]?.title ?? "—"}
+              </div>
+            ))}
+          </Fragment>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// Expected weather for the travel window, fetched lazily per card (Open-Meteo,
+// free/keyless). A practical decision-driver right on the plan.
+function PlanWeather({
+  slug,
+  name,
+  start,
+  end,
+}: {
+  slug: string;
+  name: string;
+  start: string | null;
+  end: string | null;
+}) {
+  const [wx, setWx] = useState<WeatherSummary | null>(null);
+  useEffect(() => {
+    const coords = lookupCoords(slug) ?? lookupCoords(name);
+    if (!coords || !start) return;
+    let cancelled = false;
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 3500);
+    fetchWeather(coords, start, end ?? start, controller.signal).then((data) => {
+      if (!cancelled && data) setWx(data);
+    });
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+      controller.abort();
+    };
+  }, [slug, name, start, end]);
+  if (!wx) return null;
+  const icon = wx.rainPct >= 50 ? "🌧️" : wx.rainPct >= 20 ? "🌦️" : "☀️";
+  return (
+    <p className="plan-weather">
+      <span className="wx-icon">{icon}</span>
+      {wx.lowC}–{wx.highC}°C · {wx.rainPct}% rain
+      {wx.typical && <span className="wx-typical">typical</span>}
+    </p>
+  );
+}
+
+// Match score as a ring that fills from 0 on mount, so 92% vs 74% lands
+// viscerally rather than as a bare number.
+function MatchRing({ score }: { score: number }) {
+  const [shown, setShown] = useState(0);
+  useEffect(() => {
+    const id = requestAnimationFrame(() => setShown(score));
+    return () => cancelAnimationFrame(id);
+  }, [score]);
+  const radius = 15.5;
+  const circumference = 2 * Math.PI * radius;
+  return (
+    <span className="match-ring" title={`${score}% match`} aria-label={`${score}% match`}>
+      <svg viewBox="0 0 40 40" width="38" height="38">
+        <circle className="match-ring-track" cx="20" cy="20" r={radius} />
+        <circle
+          className="match-ring-fill"
+          cx="20"
+          cy="20"
+          r={radius}
+          strokeDasharray={circumference}
+          strokeDashoffset={circumference * (1 - shown / 100)}
+        />
+      </svg>
+      <span className="match-ring-num">{score}</span>
+    </span>
+  );
+}
+
 function PlanCard({
   plan,
   groupSize,
@@ -970,6 +1148,7 @@ function PlanCard({
   activeParticipants,
   canVote,
   winner,
+  tripDates,
   onVote,
   onOpenPhoto,
 }: {
@@ -979,10 +1158,12 @@ function PlanCard({
   activeParticipants: number;
   canVote: boolean;
   winner: boolean;
+  tripDates: { start: string | null; end: string | null };
   onVote: () => void;
   onOpenPhoto: (url: string, alt: string) => void;
 }) {
   const inr = (value: number) => `₹${value.toLocaleString("en-IN")}`;
+  const [timeline, setTimeline] = useState(false);
   return (
     <article className={`plan-card${winner ? " winner" : ""}`} data-angle={plan.angle}>
       <header>
@@ -991,15 +1172,13 @@ function PlanCard({
           <h3>{plan.title}</h3>
           <p>
             {plan.destinationName} · {plan.angle}
-            {plan.matchScore > 0 && (
-              <span className="plan-match">{plan.matchScore}% match</span>
-            )}
           </p>
+          <span className="plan-cost-line">
+            {inr(plan.cost.lowInr)}–{inr(plan.cost.highInr)}
+            <small>{plan.cost.live ? "live" : "estimate"}</small>
+          </span>
         </div>
-        <span className="plan-cost">
-          {inr(plan.cost.lowInr)}–{inr(plan.cost.highInr)}
-          <small>{plan.cost.live ? "live" : "estimate"}</small>
-        </span>
+        {plan.matchScore > 0 && <MatchRing score={plan.matchScore} />}
       </header>
       {plan.destinationImages && plan.destinationImages.length > 0 && (
         <div className="plan-photos">
@@ -1023,13 +1202,28 @@ function PlanCard({
           })}
         </div>
       )}
+      <PlanWeather
+        slug={plan.destinationSlug}
+        name={plan.destinationName}
+        start={tripDates.start}
+        end={tripDates.end}
+      />
       {plan.whyRecommended && (
         <p className="plan-why">
           <strong>Why this:</strong> {plan.whyRecommended}
         </p>
       )}
       <p className="plan-summary">{plan.summary}</p>
-      <div className="plan-days">
+      {plan.itinerary.length > 1 && (
+        <button
+          type="button"
+          className="timeline-toggle"
+          onClick={() => setTimeline((on) => !on)}
+        >
+          {timeline ? "List view" : "Timeline view"}
+        </button>
+      )}
+      <div className={`plan-days${timeline ? " timeline" : ""}`}>
         {plan.itinerary.map((day) => (
           <div className="plan-day" key={day.day}>
             <p className="plan-day-title">
