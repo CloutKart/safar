@@ -11,6 +11,7 @@ import {
   type FormEvent,
   type KeyboardEvent as ReactKeyboardEvent,
   type ReactNode,
+  type TouchEvent as ReactTouchEvent,
 } from "react";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import type { GeneratedPlan } from "@/lib/domain";
@@ -72,6 +73,18 @@ function timeLabel(iso: string): string {
     hour: "2-digit",
     minute: "2-digit",
   });
+}
+
+// A subtle buzz on key actions — the tactile layer that makes it feel like an
+// app, not a webpage. No-ops where unsupported (desktop, iOS Safari).
+function haptic(pattern: number | number[] = 8): void {
+  if (typeof navigator !== "undefined" && typeof navigator.vibrate === "function") {
+    try {
+      navigator.vibrate(pattern);
+    } catch {
+      // Some browsers throw if called without a user gesture; ignore.
+    }
+  }
 }
 
 function photoLabel(type: "hero" | "popular" | "hidden_gem" | "culture"): string {
@@ -222,7 +235,19 @@ export function TripRoom({
   const [lightbox, setLightbox] = useState<{ url: string; alt: string } | null>(null);
   const [slashIndex, setSlashIndex] = useState(0);
   const [compareOpen, setCompareOpen] = useState(false);
+  const [activeCard, setActiveCard] = useState(0);
+  const [replyTo, setReplyTo] = useState<{ id: string; author: string; text: string } | null>(null);
+  const [sheetFor, setSheetFor] = useState<string | null>(null);
+  const [pinnedMessageId, setPinnedMessageId] = useState<string | null>(null);
   const chatRef = useRef<HTMLDivElement>(null);
+  const carouselRef = useRef<HTMLDivElement>(null);
+  const touchRef = useRef<{
+    x: number;
+    y: number;
+    el: HTMLElement;
+    timer: ReturnType<typeof setTimeout> | null;
+    moved: boolean;
+  } | null>(null);
 
   // Browser-local identity: a persistent id + a display name asked once. Loaded
   // after hydration so the server and first client render agree (both gate).
@@ -280,6 +305,7 @@ export function TripRoom({
         if (payload.message.participantId === null) {
           setBotThinking(false);
           setTypingActors((prev) => prev.filter((name) => name !== "Safar"));
+          haptic([0, 22]); // Safar replied
           void refetchState();
         }
       } else if (payload.type === "reaction") {
@@ -422,12 +448,82 @@ export function TripRoom({
     const log = document.querySelector(".chat-log");
     log?.scrollTo({ top: log.scrollHeight, behavior: "smooth" });
   }, []);
+  // Track which card is centred in the mobile carousel for the dot indicator.
+  const onCarouselScroll = useCallback(() => {
+    const el = carouselRef.current;
+    if (!el || el.children.length === 0) return;
+    const cardWidth = el.scrollWidth / el.children.length;
+    setActiveCard(Math.round(el.scrollLeft / cardWidth));
+  }, []);
+
+  // Quote a message into the composer (swipe-right, or Reply in the sheet).
+  const startReply = useCallback((message: ThreadMessage) => {
+    const author =
+      message.participantId === null ? "Safar" : message.displayName ?? "Traveller";
+    setReplyTo({ id: message.id, author, text: (message.text ?? "").slice(0, 140) });
+    requestAnimationFrame(() =>
+      document.querySelector<HTMLInputElement>(".composer-input")?.focus(),
+    );
+  }, []);
+
+  // Touch gestures on a message: right-swipe → reply, long-press → action sheet.
+  const onMsgTouchStart = useCallback(
+    (event: ReactTouchEvent<HTMLElement>, message: ThreadMessage) => {
+      const point = event.touches[0];
+      const el = event.currentTarget;
+      const timer = setTimeout(() => {
+        haptic(18);
+        setSheetFor(message.id);
+        if (touchRef.current) touchRef.current.timer = null;
+      }, 450);
+      touchRef.current = { x: point.clientX, y: point.clientY, el, timer, moved: false };
+    },
+    [],
+  );
+  const onMsgTouchMove = useCallback((event: ReactTouchEvent<HTMLElement>) => {
+    const ref = touchRef.current;
+    if (!ref) return;
+    const point = event.touches[0];
+    const dx = point.clientX - ref.x;
+    const dy = point.clientY - ref.y;
+    if (!ref.moved && (Math.abs(dx) > 8 || Math.abs(dy) > 8)) ref.moved = true;
+    if (ref.moved && ref.timer) {
+      clearTimeout(ref.timer);
+      ref.timer = null;
+    }
+    if (dx > 0 && Math.abs(dx) > Math.abs(dy)) {
+      ref.el.style.transition = "none";
+      ref.el.style.transform = `translateX(${Math.min(dx, 72)}px)`;
+    }
+  }, []);
+  const onMsgTouchEnd = useCallback(
+    (event: ReactTouchEvent<HTMLElement>, message: ThreadMessage) => {
+      const ref = touchRef.current;
+      if (!ref) return;
+      if (ref.timer) clearTimeout(ref.timer);
+      const point = event.changedTouches[0];
+      const dx = point.clientX - ref.x;
+      const dy = point.clientY - ref.y;
+      ref.el.style.transition = "transform .2s ease";
+      ref.el.style.transform = "";
+      if (dx > 56 && Math.abs(dy) < 40) {
+        haptic(12);
+        startReply(message);
+      }
+      touchRef.current = null;
+    },
+    [startReply],
+  );
 
   async function sendDraft(event: FormEvent) {
     event.preventDefault();
     const body = text.trim();
     if (!body || sending || !participantId || !displayName) return;
+    haptic(8); // sent
+    // A swipe-reply quotes the message inline (there's no separate threading model).
+    const outgoing = replyTo ? `> ${replyTo.author}: ${replyTo.text}\n${body}` : body;
     setText("");
+    setReplyTo(null);
     setEmojiOpen(false);
     if (typingTimerRef.current) clearTimeout(typingTimerRef.current);
     broadcastTyping(false);
@@ -440,7 +536,7 @@ export function TripRoom({
         id: pendingId,
         participantId,
         displayName,
-        text: body,
+        text: outgoing,
         occurredAt: new Date().toISOString(),
         reactions: [],
       });
@@ -448,7 +544,7 @@ export function TripRoom({
     });
     setSending(true);
     try {
-      await postMessage(body);
+      await postMessage(outgoing);
     } catch {
       // Roll back the placeholder and restore the draft so they can retry.
       setMessages((prev) => {
@@ -511,6 +607,7 @@ export function TripRoom({
 
   function castVote(option: number) {
     if (!votable(option)) return;
+    haptic([0, 14]); // vote cast
     setMyVote(option);
     void postMessage(`vote ${option}`);
   }
@@ -676,6 +773,20 @@ export function TripRoom({
       {votingOpen && state.votingClosesAt && (
         <Countdown closesAt={state.votingClosesAt} />
       )}
+      {pinnedMessageId && messages.get(pinnedMessageId)?.text && (
+        <div className="pinned-rail">
+          <span className="pinned-icon">📌</span>
+          <span className="pinned-text">{messages.get(pinnedMessageId)!.text}</span>
+          <button
+            type="button"
+            className="pinned-x"
+            onClick={() => setPinnedMessageId(null)}
+            aria-label="Unpin"
+          >
+            ✕
+          </button>
+        </div>
+      )}
 
       <div className="room-body">
         <section className="chat-panel">
@@ -689,6 +800,9 @@ export function TripRoom({
                 <article
                   key={message.id}
                   className={`msg msg-${tone}${pending ? " msg-pending" : ""}`}
+                  onTouchStart={(event) => onMsgTouchStart(event, message)}
+                  onTouchMove={onMsgTouchMove}
+                  onTouchEnd={(event) => onMsgTouchEnd(event, message)}
                 >
                   {!mine && (
                     <span
@@ -851,7 +965,25 @@ export function TripRoom({
                 {compareOpen ? (
                   <PlanCompare plans={state.plans} />
                 ) : (
-                  state.plans.map(renderPlan)
+                  <>
+                    <div
+                      className="plan-carousel"
+                      ref={carouselRef}
+                      onScroll={onCarouselScroll}
+                    >
+                      {state.plans.map(renderPlan)}
+                    </div>
+                    {state.plans.length > 1 && (
+                      <div className="carousel-dots" aria-hidden="true">
+                        {state.plans.map((plan, index) => (
+                          <span
+                            key={plan.optionNumber}
+                            className={`carousel-dot${index === activeCard ? " active" : ""}`}
+                          />
+                        ))}
+                      </div>
+                    )}
+                  </>
                 )}
               </div>
             )}
@@ -883,6 +1015,22 @@ export function TripRoom({
             ))}
           </div>
 
+          {replyTo && (
+            <div className="reply-preview">
+              <div className="reply-preview-body">
+                <span className="reply-preview-author">Replying to {replyTo.author}</span>
+                <span className="reply-preview-text">{replyTo.text}</span>
+              </div>
+              <button
+                type="button"
+                className="reply-preview-x"
+                onClick={() => setReplyTo(null)}
+                aria-label="Cancel reply"
+              >
+                ✕
+              </button>
+            </div>
+          )}
           <form className="composer" onSubmit={sendDraft}>
             {slashOpen && slashMatches.length > 0 && (
               <div className="slash-menu" role="listbox" aria-label="Commands">
@@ -979,6 +1127,71 @@ export function TripRoom({
           )}
         </aside>
       </div>
+
+      {sheetFor && messages.get(sheetFor) && (
+        <div className="sheet-backdrop" onClick={() => setSheetFor(null)}>
+          <div
+            className="action-sheet"
+            role="dialog"
+            aria-modal="true"
+            aria-label="Message actions"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div className="sheet-emojis">
+              {REACTION_EMOJIS.map((emoji) => (
+                <button
+                  type="button"
+                  key={emoji}
+                  onClick={() => {
+                    void react(sheetFor, emoji);
+                    setSheetFor(null);
+                  }}
+                >
+                  {emoji}
+                </button>
+              ))}
+            </div>
+            <button
+              type="button"
+              className="sheet-action"
+              onClick={() => {
+                const message = messages.get(sheetFor);
+                if (message) startReply(message);
+                setSheetFor(null);
+              }}
+            >
+              ↩ Reply
+            </button>
+            <button
+              type="button"
+              className="sheet-action"
+              onClick={() => {
+                setPinnedMessageId(sheetFor);
+                setSheetFor(null);
+              }}
+            >
+              📌 Pin
+            </button>
+            <button
+              type="button"
+              className="sheet-action"
+              onClick={() => {
+                void navigator.clipboard?.writeText(messages.get(sheetFor)?.text ?? "");
+                setSheetFor(null);
+              }}
+            >
+              ⧉ Copy
+            </button>
+            <button
+              type="button"
+              className="sheet-cancel"
+              onClick={() => setSheetFor(null)}
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+      )}
 
       {lightbox && (
         <div
