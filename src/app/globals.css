@@ -327,6 +327,11 @@ a { color: inherit; }
 .plan-stay { margin: 3px 0 0; font-size: 11.5px; color: var(--r-muted); }
 .plan-breakdown { display: flex; flex-wrap: wrap; gap: 6px; }
 .plan-breakdown span { padding: 3px 9px; border: 1px solid var(--r-line); border-radius: 99px; font-family: var(--font-mono), monospace; font-size: 10.5px; color: var(--r-muted); }
+.plan-totals { margin: 0; font-size: 11.5px; color: var(--r-muted); display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.plan-totals strong { color: var(--r-ink); }
+.conf { font-size: 9px; padding: 1px 7px; border-radius: 999px; margin-left: auto; white-space: nowrap; }
+.conf-high { background: rgba(69,201,138,.16); color: var(--r-accent); }
+.conf-med { background: rgba(230,200,120,.14); color: #e7d27a; }
 .plan-meta { margin: 0; font-size: 11.5px; color: var(--r-muted); }
 .plan-meta.muted { color: var(--r-faint); }
 .plan-card footer { display: flex; align-items: center; gap: 10px; margin-top: 2px; }

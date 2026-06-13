@@ -656,6 +656,7 @@ export function TripRoom({
             <PlanCard
               key={plan.optionNumber}
               plan={plan}
+              groupSize={Math.max(1, participants.length)}
               votes={tallyFor(plan.optionNumber)}
               activeParticipants={state.vote?.activeParticipants ?? 0}
               canVote={votable(plan.optionNumber)}
@@ -674,6 +675,7 @@ export function TripRoom({
 
 function PlanCard({
   plan,
+  groupSize,
   votes,
   activeParticipants,
   canVote,
@@ -681,6 +683,7 @@ function PlanCard({
   onVote,
 }: {
   plan: GeneratedPlan;
+  groupSize: number;
   votes: number;
   activeParticipants: number;
   canVote: boolean;
@@ -772,6 +775,19 @@ function PlanCard({
           <span>Food {inr(plan.cost.breakdown.foodInr)}</span>
         </div>
       )}
+      <p className="plan-totals">
+        <span>
+          <strong>{inr(plan.cost.likelyInr)}</strong>/person
+        </span>
+        {groupSize > 1 && (
+          <span>
+            · Group total <strong>{inr(plan.cost.likelyInr * groupSize)}</strong> ({groupSize})
+          </span>
+        )}
+        <span className={`conf conf-${plan.cost.live ? "high" : "med"}`}>
+          {plan.cost.live ? "High confidence" : "Medium confidence"}
+        </span>
+      </p>
       {plan.preferenceCoverage.length > 0 && (
         <p className="plan-meta">Matches: {plan.preferenceCoverage.join(", ")}</p>
       )}

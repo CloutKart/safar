@@ -112,6 +112,25 @@ describe("deterministic conversation extraction", () => {
     ).toBe(false);
   });
 
+  it("extracts excluded destinations, ignoring preference negations", () => {
+    expect(
+      extractDeterministically("goa nahi jaana").facts.find(
+        (f) => f.kind === "exclude_destination",
+      )?.value,
+    ).toBe("Goa");
+    expect(
+      extractDeterministically("not Manali please").facts.find(
+        (f) => f.kind === "exclude_destination",
+      )?.value,
+    ).toBe("Manali");
+    // "no nightlife" is a preference, not a city to exclude
+    expect(
+      extractDeterministically("no nightlife please").facts.some(
+        (f) => f.kind === "exclude_destination",
+      ),
+    ).toBe(false);
+  });
+
   it("keeps forwarded facts soft", () => {
     const result = extractDeterministically(
       "I can only spend INR 5000",

@@ -54,12 +54,23 @@ export function buildTripSummary(input: {
         .map((value) => value.trim()),
     ),
   ];
+  const excludedDestinations = [
+    ...new Set(
+      valuesFor(relevantFacts, "exclude_destination")
+        .filter((value): value is string => typeof value === "string")
+        .map((value) => value.trim())
+        .filter(Boolean),
+    ),
+  ];
+  const excludedLower = new Set(excludedDestinations.map((value) => value.toLowerCase()));
   const requestedDestinations = [
     ...new Set(
       valuesFor(relevantFacts, "destination")
         .filter((value): value is string => typeof value === "string")
         .map((value) => value.trim())
-        .filter(Boolean),
+        .filter(Boolean)
+        // A city can't be both requested and ruled out — exclusion wins.
+        .filter((value) => !excludedLower.has(value.toLowerCase())),
     ),
   ];
   const hardConstraints = relevantFacts
@@ -122,6 +133,7 @@ export function buildTripSummary(input: {
     groupSize: input.participants.length,
     departureCities,
     requestedDestinations,
+    excludedDestinations,
     dates: { start, end, durationDays },
     budget: {
       minInr,
@@ -164,7 +176,7 @@ export function formatTripSummary(summary: TripSummary, version: number): string
   return `*Safar trip summary v${version}*
 
 👥 ${summary.groupSize} active travellers
-📍 From: ${summary.departureCities.join(", ") || "Not clear yet"}${summary.requestedDestinations.length ? `\n🎯 Requested: ${summary.requestedDestinations.join(", ")}` : ""}
+📍 From: ${summary.departureCities.join(", ") || "Not clear yet"}${summary.requestedDestinations.length ? `\n🎯 Requested: ${summary.requestedDestinations.join(", ")}` : ""}${summary.excludedDestinations.length ? `\n🚫 Ruled out: ${summary.excludedDestinations.join(", ")}` : ""}
 🗓️ ${dates}
 💸 ${budget}
 🚫 Hard constraints: ${summary.hardConstraints.join("; ") || "None confirmed"}

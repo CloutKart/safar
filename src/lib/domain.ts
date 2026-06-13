@@ -26,6 +26,7 @@ export type InterestTag = z.infer<typeof InterestTagSchema>;
 export const FactKindSchema = z.enum([
   "origin",
   "destination",
+  "exclude_destination",
   "start_date",
   "end_date",
   "duration_days",
@@ -78,6 +79,8 @@ export const TripSummarySchema = z.object({
   departureCities: z.array(z.string()),
   // Cities travellers explicitly asked to go to — pinned into the plan options.
   requestedDestinations: z.array(z.string()).default([]),
+  // Cities travellers ruled out ("goa nahi jaana") — never recommended.
+  excludedDestinations: z.array(z.string()).default([]),
   dates: z.object({
     start: z.string().nullable(),
     end: z.string().nullable(),

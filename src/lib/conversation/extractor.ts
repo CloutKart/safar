@@ -6,6 +6,16 @@ import {
 } from "@/lib/domain";
 import { generateStructured } from "@/lib/ai/client";
 import { env } from "@/lib/env";
+import { destinations } from "@/data/destinations";
+
+// Catalog place names, to tell a real place exclusion ("goa nahi") from a
+// preference negation ("no nightlife").
+const KNOWN_PLACES = new Set(
+  destinations.flatMap((destination) => {
+    const name = destination.name.toLowerCase();
+    return [name, destination.slug, name.split(/[ (]/)[0]];
+  }),
+);
 
 const interestAliases: Record<InterestTag, string[]> = {
   adventure: ["adventure", "adventurous", "thrill", "thrilling"],
@@ -195,6 +205,37 @@ function extractDestination(text: string): MessageExtraction["facts"] {
   }));
 }
 
+const EXCLUDE_PREFIX =
+  /\b(?:not|no|don'?t want(?:\s+to\s+(?:go\s+to|visit))?|do not want|avoid|skip|exclude|except|hate)\s+(?:go(?:ing)?\s+to\s+|going\s+|visit(?:ing)?\s+|to\s+)?([a-z][a-z]+(?:\s+[a-z]+)?)/gi;
+const EXCLUDE_POSTFIX =
+  /\b([a-z][a-z]+(?:\s+[a-z]+)?)\s+(?:nahi(?:\s+jaana)?|mat\s+jaana|nahi\s+chahiye|na\s+jaana)\b/gi;
+
+function extractExcludedDestination(text: string): MessageExtraction["facts"] {
+  const found = new Set<string>();
+  const add = (raw: string | undefined) => {
+    if (!raw) return;
+    const phrase = raw
+      .trim()
+      .replace(/\b(for|on|in|next|this|please|pls|trip|jaana|chahiye)\b.*$/i, "")
+      .trim();
+    const first = phrase.split(/\s+/)[0];
+    if (!first || PLACE_STOPWORDS.has(first.toLowerCase())) return;
+    const isProperNoun = /^[A-Z]/.test(phrase);
+    const isKnownPlace =
+      KNOWN_PLACES.has(phrase.toLowerCase()) || KNOWN_PLACES.has(first.toLowerCase());
+    if (!isProperNoun && !isKnownPlace) return; // a preference negation, not a place
+    found.add(phrase.replace(/\b\w/g, (char) => char.toUpperCase()));
+  };
+  for (const match of text.matchAll(EXCLUDE_PREFIX)) add(match[1]);
+  for (const match of text.matchAll(EXCLUDE_POSTFIX)) add(match[1]);
+  return [...found].slice(0, 3).map((value) => ({
+    kind: "exclude_destination" as const,
+    value,
+    confidence: 0.72,
+    isHard: true,
+  }));
+}
+
 function extractPreferences(text: string): MessageExtraction["preferences"] {
   const lower = text.toLowerCase();
   const matches = interestTags.filter((tag) =>
@@ -264,6 +305,7 @@ export function extractDeterministically(
     ...extractDates(text),
     ...extractOrigin(text),
     ...extractDestination(text),
+    ...extractExcludedDestination(text),
   ];
 
   return {
@@ -291,7 +333,7 @@ Return JSON only. Understand English, Hindi, and Roman-script Hinglish.
 Only attribute a personal preference when the speaker uses direct first-person evidence.
 Jokes, forwarded content, and statements about another person cannot create hard constraints.
 Allowed interest tags: ${interestTags.join(", ")}.
-Allowed fact kinds: origin, destination, start_date, end_date, duration_days, budget_min, budget_max, transport, restriction.`,
+Allowed fact kinds: origin, destination, exclude_destination, start_date, end_date, duration_days, budget_min, budget_max, transport, restriction.`,
     user: JSON.stringify({
       message: input.text,
       forwarded: input.isForwarded ?? false,

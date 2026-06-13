@@ -382,7 +382,14 @@ export async function generatePlans(
   summary: TripSummary,
 ): Promise<GeneratedPlan[]> {
   const weights = groupWeights(summary);
+  const excluded = summary.excludedDestinations.map((value) => value.toLowerCase());
+  const isExcluded = (destination: CuratedDestination) => {
+    const name = destination.name.toLowerCase();
+    const head = name.split(/[ (]/)[0];
+    return excluded.some((ex) => name === ex || name.includes(ex) || ex.includes(head));
+  };
   const ranked = destinations
+    .filter((destination) => !isExcluded(destination))
     .map((destination) => ({
       destination,
       score: destinationScore(destination, summary, weights),
