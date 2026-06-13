@@ -152,6 +152,9 @@ export const GeneratedPlanSchema = z.object({
   destinationSlug: z.string(),
   destinationName: z.string(),
   angle: z.enum(["balanced", "adventurous", "relaxed"]),
+  // 0-100 weighted match score + a one-line reason it was recommended.
+  matchScore: z.number().int().min(0).max(100).default(0),
+  whyRecommended: z.string().default(""),
   summary: z.string(),
   preferenceCoverage: z.array(z.string()),
   tradeoffs: z.array(z.string()),

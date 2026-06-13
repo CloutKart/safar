@@ -126,6 +126,7 @@ export function TripRoom({
   const [draftName, setDraftName] = useState("");
   const [text, setText] = useState("");
   const [sending, setSending] = useState(false);
+  const [botThinking, setBotThinking] = useState(false);
   const [paletteFor, setPaletteFor] = useState<string | null>(null);
   const [emojiOpen, setEmojiOpen] = useState(false);
   const [copied, setCopied] = useState(false);
@@ -188,7 +189,10 @@ export function TripRoom({
       const payload = JSON.parse(event.data) as RoomEvent;
       if (payload.type === "message") {
         mergeMessages([payload.message]);
-        if (payload.message.participantId === null) void refetchState();
+        if (payload.message.participantId === null) {
+          setBotThinking(false);
+          void refetchState();
+        }
       } else if (payload.type === "reaction") {
         setMessages((prev) => {
           const existing = prev.get(payload.messageId);
@@ -230,13 +234,21 @@ export function TripRoom({
   const postMessage = useCallback(
     async (body: string) => {
       if (!participantId || !displayName) return;
-      const response = await fetch(`/api/trip/${slug}/messages`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ participantId, displayName, text: body }),
-      });
-      if (!response.ok) throw new Error("Message failed to send");
-      void refetchState();
+      // If the server takes a beat (the bot is summarizing or planning), show a
+      // "Safar is typing" indicator until it responds.
+      const thinkingTimer = setTimeout(() => setBotThinking(true), 700);
+      try {
+        const response = await fetch(`/api/trip/${slug}/messages`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ participantId, displayName, text: body }),
+        });
+        if (!response.ok) throw new Error("Message failed to send");
+        void refetchState();
+      } finally {
+        clearTimeout(thinkingTimer);
+        setBotThinking(false);
+      }
     },
     [participantId, displayName, slug, refetchState],
   );
@@ -424,8 +436,12 @@ export function TripRoom({
               const bot = message.participantId === null;
               const mine = message.participantId === participantId;
               const tone = bot ? "bot" : mine ? "out" : "in";
+              const pending = message.id.startsWith("pending:");
               return (
-                <article key={message.id} className={`msg msg-${tone}`}>
+                <article
+                  key={message.id}
+                  className={`msg msg-${tone}${pending ? " msg-pending" : ""}`}
+                >
                   {!mine && (
                     <span
                       className={`msg-avatar${bot ? " bot" : ""}`}
@@ -446,7 +462,9 @@ export function TripRoom({
                       {message.text && (
                         <span className="bubble-text">{renderText(message.text)}</span>
                       )}
-                      <span className="bubble-time">{timeLabel(message.occurredAt)}</span>
+                      <span className="bubble-time">
+                        {pending ? "sending…" : timeLabel(message.occurredAt)}
+                      </span>
                       {message.reactions.length > 0 && (
                         <div className="bubble-reactions">
                           {message.reactions.map((reaction) => {
@@ -496,6 +514,19 @@ export function TripRoom({
                 </article>
               );
             })}
+            {botThinking && (
+              <article className="msg msg-bot msg-typing">
+                <span className="msg-avatar bot">S</span>
+                <div className="msg-main">
+                  <span className="msg-author">Safar</span>
+                  <div className="bubble typing-bubble" aria-label="Safar is typing">
+                    <span />
+                    <span />
+                    <span />
+                  </div>
+                </div>
+              </article>
+            )}
             {sorted.length === 0 && (
               <p className="chat-empty">
                 Say hello and start sharing dates, budgets, and the kind of trip
@@ -665,6 +696,9 @@ function PlanCard({
           <h3>{plan.title}</h3>
           <p>
             {plan.destinationName} · {plan.angle}
+            {plan.matchScore > 0 && (
+              <span className="plan-match">{plan.matchScore}% match</span>
+            )}
           </p>
         </div>
         <span className="plan-cost">
@@ -688,6 +722,11 @@ function PlanCard({
             </div>
           ))}
         </div>
+      )}
+      {plan.whyRecommended && (
+        <p className="plan-why">
+          <strong>Why this:</strong> {plan.whyRecommended}
+        </p>
       )}
       <p className="plan-summary">{plan.summary}</p>
       <div className="plan-days">

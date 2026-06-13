@@ -58,6 +58,77 @@ function destinationScore(
   return score;
 }
 
+// A 0-100 match score with the spec's weighting, plus a one-line "why". All
+// deterministic (no extra LLM) from data already gathered for the plan.
+function scorePlanMatch(input: {
+  destination: CuratedDestination;
+  summary: TripSummary;
+  weights: Map<InterestTag, number>;
+  matchedTags: InterestTag[];
+  days: number;
+  likely: number;
+  gems: Gem[];
+  hasLiveStay: boolean;
+}): { matchScore: number; whyRecommended: string } {
+  const { destination, summary, weights, matchedTags, days, likely, gems, hasLiveStay } = input;
+
+  const totalPositive = [...weights.values()]
+    .filter((weight) => weight > 0)
+    .reduce((sum, weight) => sum + weight, 0);
+  const matchedWeight = matchedTags.reduce((sum, tag) => sum + (weights.get(tag) ?? 0), 0);
+  const preference = totalPositive > 0 ? Math.min(1, matchedWeight / totalPositive) : 0.5;
+
+  const budget = summary.budget.maxInr;
+  const budgetFit = budget
+    ? Math.max(0, Math.min(1, 1 - Math.max(0, (likely - budget) / budget)))
+    : 0.7;
+
+  const durationOk = days >= destination.minDays && days <= destination.maxDays + 1 ? 1 : 0.5;
+  const month = summary.dates.start
+    ? new Date(`${summary.dates.start}T00:00:00Z`).getUTCMonth() + 1
+    : null;
+  const seasonOk = month ? (destination.idealMonths.includes(month) ? 1 : 0.45) : 0.85;
+  const feasibility = (durationOk + seasonOk) / 2;
+
+  const hiddenCount = gems.filter(isHiddenGem).length;
+  const popularCount = gems.length - hiddenCount;
+  const hiddenQuality = Math.min(1, hiddenCount / 4);
+  const popularQuality = Math.min(1, popularCount / 4);
+  const accommodation = hasLiveStay ? 1 : 0.6;
+
+  const matchScore = Math.round(
+    100 *
+      (0.3 * preference +
+        0.2 * budgetFit +
+        0.15 * feasibility +
+        0.15 * hiddenQuality +
+        0.1 * popularQuality +
+        0.1 * accommodation),
+  );
+
+  const parts: string[] = [];
+  if (matchedTags.length) parts.push(`strong fit for ${matchedTags.slice(0, 3).join(", ")}`);
+  if (budget) {
+    parts.push(
+      budgetFit >= 0.95
+        ? `comfortably within your ₹${Math.round(budget / 1000)}k budget`
+        : budgetFit >= 0.7
+          ? "close to your budget"
+          : "a stretch on budget",
+    );
+  }
+  if (hiddenCount) {
+    parts.push(`${hiddenCount} hidden gem${hiddenCount > 1 ? "s" : ""} + ${popularCount} popular sights`);
+  }
+  if (month && !destination.idealMonths.includes(month)) parts.push("note: off-season");
+  const whyRecommended =
+    parts.length > 0
+      ? parts.join(" · ").replace(/^./, (char) => char.toUpperCase())
+      : "A solid all-round match for your group.";
+
+  return { matchScore, whyRecommended };
+}
+
 function activitiesFor(
   destination: CuratedDestination,
   angle: GeneratedPlan["angle"],
@@ -424,10 +495,22 @@ export async function generatePlans(
       const planSummary =
         detail?.summary ||
         `${days} days built around ${matchedTags.slice(0, 4).join(", ") || destination.tags.slice(0, 4).join(", ")} without breaking the group’s stated hard constraints.`;
+      const { matchScore, whyRecommended } = scorePlanMatch({
+        destination,
+        summary,
+        weights,
+        matchedTags,
+        days,
+        likely,
+        gems,
+        hasLiveStay: Boolean(stayQuote?.title),
+      });
 
       const retrievedAt = new Date().toISOString();
       return GeneratedPlanSchema.parse({
         optionNumber: index + 1,
+        matchScore,
+        whyRecommended,
         title: `${destination.name}: ${angle === "balanced" ? "the group sweet spot" : angle === "adventurous" ? "go bigger" : "slow down and taste more"}`,
         destinationSlug: destination.slug,
         destinationName: destination.name,
