@@ -194,9 +194,29 @@ async function handleVote(
   participant: StoredParticipant,
   option: number,
 ): Promise<void> {
-  if (group.status !== "voting") {
+  if (group.status === "completed") {
+    await send(store, group, "This trip is already decided — the winning plan stands.");
+    return;
+  }
+  // Voting is "open" whenever plans exist. savePlans flips status to "voting" in
+  // a *separate* write that can lag or fail on Supabase, leaving the plans saved
+  // but the status stuck at "researching"; gating on status alone would then
+  // wrongly reject votes. Derive openness from the plans themselves.
+  const plans = await store.getPlans(group.id);
+  if (plans.length === 0) {
     await send(store, group, "Voting is not open yet.");
     return;
+  }
+  const round = group.votingRound || 1;
+  // Self-heal a desynced row so loadRoomState and other devices converge to "voting".
+  if (group.status !== "voting") {
+    await store.updateGroup(group.id, {
+      status: "voting",
+      votingRound: round,
+      votingClosesAt:
+        group.votingClosesAt ??
+        new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
+    });
   }
   if (group.runoffOptions.length > 0 && !group.runoffOptions.includes(option)) {
     await send(
@@ -210,7 +230,7 @@ async function handleVote(
     groupId: group.id,
     participantId: participant.id,
     optionNumber: option,
-    round: group.votingRound,
+    round,
   });
   if (!result.changed) {
     await send(store, group, "That plan option is not available.");
@@ -231,7 +251,7 @@ async function handleVote(
   }
   if (result.tied.length > 1) {
     const options = result.tied.map((plan) => plan.optionNumber);
-    const nextRound = group.votingRound + 1;
+    const nextRound = round + 1;
     await store.updateGroup(group.id, {
       votingRound: nextRound,
       runoffOptions: options,
@@ -244,6 +264,50 @@ async function handleVote(
       `It’s a tie. Runoff round ${nextRound} is now open between options ${options.join(" and ")}. Reply with your choice again.`,
     );
   }
+}
+
+function formatMinutes(total: number): string {
+  const days = Math.floor(total / 1440);
+  const hours = Math.floor((total % 1440) / 60);
+  const mins = total % 60;
+  if (days > 0) return `${days}d${hours ? ` ${hours}h` : ""}`;
+  if (hours > 0) return `${hours}h${mins ? ` ${mins}m` : ""}`;
+  return `${mins}m`;
+}
+
+// Any member can set/extend the voting deadline; the coordinator cron already
+// auto-tallies the result when votingClosesAt passes.
+async function handleDeadline(
+  store: SafarStore,
+  group: StoredGroup,
+  minutes: number | null,
+): Promise<void> {
+  const plans = await store.getPlans(group.id);
+  if (plans.length === 0) {
+    await send(store, group, "I can set a voting deadline once the plans are posted.");
+    return;
+  }
+  if (minutes == null) {
+    await send(
+      store,
+      group,
+      "Tell me how long to keep voting open — e.g. *deadline 6h*, *deadline 2 days*, or *deadline tomorrow*.",
+    );
+    return;
+  }
+  const clamped = Math.min(14 * 24 * 60, Math.max(15, minutes));
+  const closesAt = new Date(Date.now() + clamped * 60_000).toISOString();
+  await store.updateGroup(group.id, {
+    status: "voting",
+    votingClosesAt: closesAt,
+    votingRound: group.votingRound || 1,
+    reminderCount: 0,
+  });
+  await send(
+    store,
+    group,
+    `Voting deadline set — closes in *${formatMinutes(clamped)}*. I’ll tally the result automatically when time’s up.`,
+  );
 }
 
 async function processMessage(
@@ -299,6 +363,10 @@ async function processMessage(
   }
   if (command.type === "vote") {
     await handleVote(store, group, participant, command.option);
+    return;
+  }
+  if (command.type === "deadline") {
+    await handleDeadline(store, group, command.minutes);
     return;
   }
   if (command.type === "approve" || command.type === "reject") {

@@ -13,6 +13,8 @@ export interface RoomState {
   votingRound: number;
   runoffOptions: number[];
   votingClosesAt: string | null;
+  // Where the group is travelling from — used by the journey map and chips.
+  departureCities: string[];
   summaryStatus: "review" | "approved" | "superseded" | null;
   vibe: Vibe;
   vibes: Vibe[];
@@ -33,9 +35,12 @@ export async function loadRoomState(slug: string): Promise<RoomState | null> {
     store.getPlans(group.id),
     store.getCurrentSummary(group.id),
   ]);
+  // Voting tallies are available whenever plans exist — not only once the group
+  // row's status has caught up to "voting" (that write can lag behind savePlans
+  // on Supabase). Deriving from plans keeps the panel correct on first load.
   const vote =
-    group.status === "voting" || group.status === "completed"
-      ? await store.getVoteResult(group.id, group.votingRound)
+    plans.length > 0 || group.status === "completed"
+      ? await store.getVoteResult(group.id, group.votingRound || 1)
       : null;
   const planContents = plans.map((plan) => plan.content);
   // One vibe set drives both the crossfading island scene and the title, so the
@@ -61,6 +66,7 @@ export async function loadRoomState(slug: string): Promise<RoomState | null> {
     votingRound: group.votingRound,
     runoffOptions: group.runoffOptions,
     votingClosesAt: group.votingClosesAt,
+    departureCities: summary?.content.departureCities ?? [],
     summaryStatus: summary?.status ?? null,
     vibe: vibes[0],
     vibes,

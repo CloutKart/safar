@@ -8,6 +8,7 @@ import {
   useRef,
   useState,
   type FormEvent,
+  type KeyboardEvent as ReactKeyboardEvent,
   type ReactNode,
 } from "react";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
@@ -122,6 +123,71 @@ const IconPoll = (
   </svg>
 );
 
+// The trip's five legible stages. A mid-conversation joiner can orient at a
+// glance — and first-timers learn the app's model ("oh, we're still planning").
+const STAGES = ["Chatting", "Summarized", "Planning", "Voted", "Done"] as const;
+function stageIndex(status: RoomState["status"]): number {
+  switch (status) {
+    case "summary_review":
+      return 1;
+    case "researching":
+      return 2;
+    case "voting":
+      return 3;
+    case "completed":
+    case "archived":
+      return 4;
+    default:
+      return 0; // forming / listening
+  }
+}
+function StageBar({ status }: { status: RoomState["status"] }) {
+  const active = stageIndex(status);
+  return (
+    <div className="stage-bar" role="group" aria-label="Trip progress">
+      {STAGES.map((label, index) => {
+        const phase = index < active ? "done" : index === active ? "current" : "upcoming";
+        return (
+          <div key={label} className={`stage stage-${phase}`} aria-current={index === active}>
+            {index < STAGES.length - 1 && <span className="stage-line" />}
+            <span className="stage-dot">{index < active ? "✓" : index + 1}</span>
+            <span className="stage-label">{label}</span>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+function formatRemaining(ms: number): string {
+  const total = Math.max(0, Math.floor(ms / 60000));
+  const days = Math.floor(total / 1440);
+  const hours = Math.floor((total % 1440) / 60);
+  const mins = total % 60;
+  if (days > 0) return `${days}d ${hours}h`;
+  if (hours > 0) return `${hours}h ${mins}m`;
+  return `${mins}m`;
+}
+// Live "voting closes in …" pill — the deadline urgency that actually gets
+// groups to decide. Ticks client-side; the cron tallies the result on expiry.
+function Countdown({ closesAt }: { closesAt: string }) {
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    const id = setInterval(() => setNow(Date.now()), 20000);
+    return () => clearInterval(id);
+  }, []);
+  const remaining = new Date(closesAt).getTime() - now;
+  const urgent = remaining <= 60 * 60 * 1000;
+  return (
+    <div className={`vote-countdown${urgent ? " urgent" : ""}`} role="timer">
+      <span className="vote-countdown-dot" />
+      {remaining <= 0
+        ? "Voting is closing — tallying now…"
+        : `Voting closes in ${formatRemaining(remaining)}`}
+    </div>
+  );
+}
+
 export function TripRoom({
   slug,
   initialState,
@@ -150,6 +216,7 @@ export function TripRoom({
   const [copied, setCopied] = useState(false);
   const [myVote, setMyVote] = useState<number | null>(null);
   const [lightbox, setLightbox] = useState<{ url: string; alt: string } | null>(null);
+  const [slashIndex, setSlashIndex] = useState(0);
   const chatRef = useRef<HTMLDivElement>(null);
 
   // Browser-local identity: a persistent id + a display name asked once. Loaded
@@ -337,6 +404,20 @@ export function TripRoom({
     typingTimerRef.current = setTimeout(() => broadcastTyping(false), 2500);
   }, [broadcastTyping]);
 
+  // Prefill + focus the composer (used by action chips and the slash menu);
+  // scroll the thread to the plans. These query the DOM rather than holding a
+  // React ref so the chip/menu closures don't trip the "no ref during render" rule.
+  const prefill = useCallback((value: string) => {
+    setText(value);
+    requestAnimationFrame(() =>
+      document.querySelector<HTMLInputElement>(".composer-input")?.focus(),
+    );
+  }, []);
+  const scrollToPlans = useCallback(() => {
+    const log = document.querySelector(".chat-log");
+    log?.scrollTo({ top: log.scrollHeight, behavior: "smooth" });
+  }, []);
+
   async function sendDraft(event: FormEvent) {
     event.preventDefault();
     const body = text.trim();
@@ -413,8 +494,11 @@ export function TripRoom({
     }
   }
 
+  // Voting is open as soon as plans exist (mirrors the server) — don't wait for
+  // the group row's status to catch up to "voting", which can lag on Supabase.
+  const votingOpen = state.plans.length > 0 && state.status !== "completed";
   const votable = (option: number) =>
-    state.status === "voting" &&
+    votingOpen &&
     (state.runoffOptions.length === 0 || state.runoffOptions.includes(option));
 
   const tallyFor = (option: number) =>
@@ -479,6 +563,54 @@ export function TripRoom({
 
   const hasPlans = state.plans.length > 0;
 
+  // Contextual next-step chips, driven purely by the room's stage.
+  const actionChips: { label: string; onClick: () => void }[] = [];
+  if (state.status === "summary_review") {
+    actionChips.push({ label: "Approve ✓", onClick: () => postMessage("approve") });
+    actionChips.push({ label: "Change budget →", onClick: () => prefill("Our budget is ₹") });
+  } else if (votingOpen) {
+    actionChips.push({ label: "Vote now →", onClick: scrollToPlans });
+    actionChips.push({ label: "Set deadline →", onClick: () => prefill("/deadline ") });
+  } else if (state.status === "completed") {
+    actionChips.push({ label: "Share trip →", onClick: () => void copyLink() });
+  }
+
+  // Slash menu: typing "/" surfaces Safar's commands, so the app self-documents.
+  const slashCommands: { cmd: string; desc: string; run: () => void }[] = [
+    { cmd: "/summarize", desc: "Post the current trip brief", run: () => postMessage("Safar, summarize the trip") },
+    { cmd: "/approve", desc: "Approve the summary to start planning", run: () => postMessage("approve") },
+    { cmd: "/vote", desc: "Vote for a plan (1–3)", run: () => prefill("vote ") },
+    { cmd: "/deadline", desc: "Set when voting closes (e.g. 6h)", run: () => prefill("/deadline ") },
+    { cmd: "/budget", desc: "Tell Safar your budget", run: () => prefill("Our budget is ₹") },
+    { cmd: "/remember", desc: "See what Safar remembers about you", run: () => postMessage("what do you remember about me") },
+    { cmd: "/help", desc: "List what you can say", run: () => postMessage("help") },
+  ];
+  const slashOpen = /^\/[a-z]*$/i.test(text);
+  const slashMatches = slashOpen
+    ? slashCommands.filter((item) => item.cmd.slice(1).startsWith(text.slice(1).toLowerCase()))
+    : [];
+  const activeSlash = Math.min(slashIndex, Math.max(0, slashMatches.length - 1));
+  const runSlash = (item: { run: () => void }) => {
+    setText("");
+    setSlashIndex(0);
+    item.run();
+  };
+  const onComposerKeyDown = (event: ReactKeyboardEvent<HTMLInputElement>) => {
+    if (!slashOpen || slashMatches.length === 0) return;
+    if (event.key === "ArrowDown") {
+      event.preventDefault();
+      setSlashIndex((i) => (i + 1) % slashMatches.length);
+    } else if (event.key === "ArrowUp") {
+      event.preventDefault();
+      setSlashIndex((i) => (i - 1 + slashMatches.length) % slashMatches.length);
+    } else if (event.key === "Enter") {
+      event.preventDefault();
+      runSlash(slashMatches[activeSlash]);
+    } else if (event.key === "Escape") {
+      setText("");
+    }
+  };
+
   return (
     <main className="room" data-vibe={state.vibe}>
       <header className="island">
@@ -533,6 +665,11 @@ export function TripRoom({
           </div>
         </div>
       </header>
+
+      <StageBar status={state.status} />
+      {votingOpen && state.votingClosesAt && (
+        <Countdown closesAt={state.votingClosesAt} />
+      )}
 
       <div className="room-body">
         <section className="chat-panel">
@@ -702,21 +839,42 @@ export function TripRoom({
           </div>
 
           <div className="quick-actions">
-            <button type="button" onClick={() => postMessage("Safar, summarize the trip")}>
-              Summarize the trip
-            </button>
-            {state.status === "summary_review" && (
-              <button
-                type="button"
-                className="primary"
-                onClick={() => postMessage("approve")}
-              >
-                Approve summary
+            {["forming", "listening", "summary_review"].includes(state.status) && (
+              <button type="button" onClick={() => postMessage("Safar, summarize the trip")}>
+                Summarize the trip
               </button>
             )}
+            {actionChips.map((chip) => (
+              <button
+                type="button"
+                key={chip.label}
+                className={chip.label.startsWith("Approve") ? "primary" : ""}
+                onClick={chip.onClick}
+              >
+                {chip.label}
+              </button>
+            ))}
           </div>
 
           <form className="composer" onSubmit={sendDraft}>
+            {slashOpen && slashMatches.length > 0 && (
+              <div className="slash-menu" role="listbox" aria-label="Commands">
+                {slashMatches.map((item, index) => (
+                  <button
+                    type="button"
+                    key={item.cmd}
+                    role="option"
+                    aria-selected={index === activeSlash}
+                    className={`slash-item${index === activeSlash ? " active" : ""}`}
+                    onMouseEnter={() => setSlashIndex(index)}
+                    onClick={() => runSlash(item)}
+                  >
+                    <span className="slash-cmd">{item.cmd}</span>
+                    <span className="slash-desc">{item.desc}</span>
+                  </button>
+                ))}
+              </div>
+            )}
             <div className="composer-plus">
               <button
                 type="button"
@@ -743,9 +901,10 @@ export function TripRoom({
             <input
               className="composer-input"
               onInput={onTyping}
+              onKeyDown={onComposerKeyDown}
               value={text}
               onChange={(event) => setText(event.target.value)}
-              placeholder="Type your message…"
+              placeholder="Type your message… (/ for commands)"
               maxLength={4000}
             />
             <button
