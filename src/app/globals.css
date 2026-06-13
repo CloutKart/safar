@@ -305,9 +305,11 @@ a { color: inherit; }
 .plan-cost { text-align: right; font-weight: 800; font-size: 12px; white-space: nowrap; color: var(--r-ink); }
 .plan-cost small { display: block; font-weight: 600; font-size: 9px; letter-spacing: .08em; color: var(--r-faint); text-transform: uppercase; }
 .plan-photos { display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px; border-radius: 12px; overflow: hidden; }
-.plan-photo { position: relative; aspect-ratio: 1 / 1; overflow: hidden; background: rgba(255,255,255,.04); }
-.plan-photo img { width: 100%; height: 100%; object-fit: cover; display: block; }
-.plan-photo-tag { position: absolute; left: 4px; bottom: 4px; font-size: 9px; letter-spacing: .02em; padding: 2px 6px; border-radius: 999px; background: rgba(0,0,0,.62); color: #fff; }
+.plan-photo { position: relative; aspect-ratio: 1 / 1; overflow: hidden; padding: 0; border: 0; background: rgba(255,255,255,.04); cursor: zoom-in; }
+.plan-photo img { width: 100%; height: 100%; object-fit: cover; display: block; transition: transform .28s ease; }
+@media (hover: hover) { .plan-photo:hover img { transform: scale(1.07); } }
+.plan-photo:focus-visible { outline: 2px solid var(--r-accent); outline-offset: 2px; }
+.plan-photo-tag { position: absolute; left: 4px; bottom: 4px; font-size: 9px; letter-spacing: .02em; padding: 2px 6px; border-radius: 999px; background: rgba(0,0,0,.62); color: #fff; pointer-events: none; }
 .badge { font-size: 9.5px; padding: 1px 7px; border-radius: 999px; margin-left: 6px; vertical-align: middle; white-space: nowrap; letter-spacing: .01em; }
 .badge-hidden { background: rgba(120,200,160,.16); color: #8fe3b8; }
 .badge-popular { background: rgba(255,255,255,.07); color: var(--r-muted); }
@@ -341,6 +343,20 @@ a { color: inherit; }
 .plan-tally { font-family: var(--font-mono), monospace; font-size: 11px; letter-spacing: 1px; color: var(--r-accent); }
 .plan-sources { display: flex; flex-wrap: wrap; gap: 10px; }
 .plan-sources a { font-size: 11px; color: var(--r-accent); text-decoration: none; border-bottom: 1px solid rgba(69,201,138,.4); }
+
+/* In-chat plan feed — full plan cards delivered in the message stream. Hidden on
+   desktop (the side panel shows them); shown on mobile so photos + per-stop
+   pricing are visible there too. */
+.plans-feed { display: none; }
+
+/* Photo lightbox — tap a plan photo to enlarge it full-screen. */
+.lightbox { position: fixed; inset: 0; z-index: 100; display: grid; place-items: center; padding: 24px; background: rgba(4,8,6,.88); backdrop-filter: blur(6px); cursor: zoom-out; animation: lightboxIn .18s ease; }
+.lightbox img { max-width: min(960px, 92vw); max-height: 86vh; border-radius: 14px; box-shadow: 0 30px 90px rgba(0,0,0,.6); object-fit: contain; cursor: default; }
+.lightbox-caption { position: absolute; left: 0; right: 0; bottom: 20px; text-align: center; font-size: 13px; color: #cfe8dc; text-transform: capitalize; }
+.lightbox-close { position: absolute; top: 16px; right: 16px; display: grid; place-items: center; width: 40px; height: 40px; border-radius: 50%; border: 1px solid rgba(255,255,255,.25); background: rgba(0,0,0,.45); color: #fff; font-size: 16px; cursor: pointer; }
+.lightbox-close:hover { background: rgba(0,0,0,.65); }
+@keyframes lightboxIn { from { opacity: 0; } to { opacity: 1; } }
+@media (prefers-reduced-motion: reduce) { .lightbox { animation: none; } }
 
 /* Join gate */
 .room-gate { position: relative; min-height: 100vh; display: grid; place-items: center; padding: 24px; overflow: hidden; background: var(--r-bg); color: var(--r-ink); }
@@ -409,13 +425,60 @@ a { color: inherit; }
 .poll-check { position: relative; z-index: 1; color: var(--r-accent); font-weight: 800; font-size: 13px; }
 .poll-count { position: relative; z-index: 1; min-width: 14px; text-align: right; font-family: var(--font-mono), monospace; font-size: 12px; color: var(--r-muted); }
 
+/* ── Mobile: a real, full-height chat surface ──────────────────────────────
+   The whole screen becomes the conversation — fixed header, scrolling thread,
+   pinned composer (clear of the home bar / keyboard) — like a messaging app.
+   Plans ride inside the thread as cards, so photos + pricing show here too. */
 @media (max-width: 900px) {
-  .room { padding: 12px 12px 22px; }
-  .room-body { grid-template-columns: 1fr; gap: 14px; }
-  .chat-panel { height: auto; min-height: 0; }
-  .chat-log { height: 60vh; }
+  .room {
+    height: 100dvh;
+    min-height: 100dvh;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+  .room .island, .room-body { width: 100%; }
+  .island { height: 124px; border-radius: 0 0 22px 22px; flex: none; }
+  .island-content { padding: 12px 14px; }
+  .island-heading h1 { font-size: 1.15rem; }
+  .island-presence { gap: 8px; }
+
+  .room-body {
+    flex: 1;
+    min-height: 0;
+    margin-top: 0;
+    gap: 0;
+    display: flex;
+    flex-direction: column;
+  }
+  .chat-panel {
+    flex: 1;
+    min-height: 0;
+    height: auto;
+    border: none;
+    border-radius: 0;
+    background: transparent;
+  }
+  .chat-log { flex: 1; height: auto; min-height: 0; padding: 14px 12px 8px; gap: 13px; }
+
+  /* Side panel + compact poll give way to full plan cards in the thread. */
   .plans-panel { display: none; }
-  .poll-inline { display: block; margin-top: 4px; }
-  .island { height: 170px; }
-  .island-heading h1 { font-size: 1.2rem; }
+  .poll-inline { display: none; }
+  .plans-feed { display: flex; flex-direction: column; gap: 14px; margin-top: 4px; }
+
+  .quick-actions { padding: 8px 12px 0; }
+  .composer {
+    padding: 10px 12px;
+    padding-bottom: calc(10px + env(safe-area-inset-bottom));
+    background: var(--r-surface);
+  }
+  /* 16px keeps iOS Safari from zooming the page when the input is focused. */
+  .composer-input { height: 44px; font-size: 16px; }
+}
+
+@media (max-width: 480px) {
+  .island { height: 112px; }
+  .island-heading h1 { font-size: 1.05rem; }
+  .plan-card { padding: 13px; }
 }

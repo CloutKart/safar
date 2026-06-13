@@ -157,6 +157,39 @@ function activitiesFor(
 const capitalize = (value: string) =>
   `${value[0].toUpperCase()}${value.slice(1)}`;
 
+const clampInr = (value: number, lo: number, hi: number) =>
+  Math.min(hi, Math.max(lo, value));
+
+// Deterministic per-person estimate for a single stop, scaled off the
+// destination's low daily-budget tier and the stop kind. This is what lets the
+// no-LLM/template plans carry the same per-stop pricing the LLM path produces,
+// so EVERY plan shows budget detail — not just the one the LLM happened to fill.
+function stopCostInr(
+  kind: ItineraryStop["kind"],
+  destination: CuratedDestination,
+): number | null {
+  const tier = destination.dailyBudgetInr[0];
+  const round = (value: number, step: number) => Math.round(value / step) * step;
+  switch (kind) {
+    case "food":
+      return clampInr(round(tier * 0.12, 10), 120, 450);
+    case "activity":
+      return clampInr(round(tier * 0.4, 50), 300, 2500);
+    case "sight":
+      return clampInr(round(tier * 0.06, 10), 20, 400);
+    case "transport":
+      return clampInr(round(tier * 0.1, 10), 50, 800);
+    case "hidden-gem":
+    default:
+      // Offbeat viewpoints, walks and local finds are usually free entry.
+      return null;
+  }
+}
+
+// Big-ticket experiences (treks, rafting, dives) are priced as activities;
+// everything else from the catalog highlights is a low-cost sightseeing entry.
+const ACTIVITY_NAME = /trek|trail|raft|kayak|camp|dive|safari|cruise|surf|climb|paraglid|snorkel/i;
+
 // Deterministic itinerary used when no LLM is configured (dev / no key). It is
 // intentionally generic; the LLM path below is what produces specific spots,
 // hidden gems, hotels and per-stop costs.
@@ -175,17 +208,22 @@ function fallbackItinerary(
           : [acts[index % acts.length], acts[(index + 1) % acts.length]];
     const stops: ItineraryStop[] = picks
       .filter((name): name is string => Boolean(name))
-      .map((name) => ({
-        name,
-        kind: "sight" as const,
-        note: "",
-        approxInr: null,
-      }));
+      .map((name) => {
+        const kind: ItineraryStop["kind"] = ACTIVITY_NAME.test(name)
+          ? "activity"
+          : "sight";
+        return {
+          name,
+          kind,
+          note: "",
+          approxInr: stopCostInr(kind, destination),
+        };
+      });
     stops.push({
       name: "Local café or food stop",
       kind: "food",
       note: "",
-      approxInr: null,
+      approxInr: stopCostInr("food", destination),
     });
     return {
       day: index + 1,
@@ -206,6 +244,7 @@ function fallbackItinerary(
 function injectGems(
   itinerary: GeneratedPlan["itinerary"],
   gems: Gem[],
+  destination: CuratedDestination,
 ): GeneratedPlan["itinerary"] {
   if (gems.length === 0) return itinerary;
   const present = itinerary.flatMap((day) =>
@@ -242,7 +281,7 @@ function injectGems(
               : gem.sources.includes("places")
                 ? "well-rated, low-key local spot"
                 : "offbeat local find"),
-          approxInr: null,
+          approxInr: isFood ? stopCostInr("food", destination) : null,
         },
       ],
     };
@@ -498,7 +537,7 @@ export async function generatePlans(
             }))
           : baseItinerary;
       // Guarantee real, verified hidden gems appear even without an LLM.
-      const itinerary = injectGems(withStay, gems);
+      const itinerary = injectGems(withStay, gems, destination);
       const planSummary =
         detail?.summary ||
         `${days} days built around ${matchedTags.slice(0, 4).join(", ") || destination.tags.slice(0, 4).join(", ")} without breaking the group’s stated hard constraints.`;

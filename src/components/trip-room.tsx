@@ -149,6 +149,7 @@ export function TripRoom({
   const [emojiOpen, setEmojiOpen] = useState(false);
   const [copied, setCopied] = useState(false);
   const [myVote, setMyVote] = useState<number | null>(null);
+  const [lightbox, setLightbox] = useState<{ url: string; alt: string } | null>(null);
   const chatRef = useRef<HTMLDivElement>(null);
 
   // Browser-local identity: a persistent id + a display name asked once. Loaded
@@ -276,7 +277,22 @@ export function TripRoom({
 
   useEffect(() => {
     chatRef.current?.scrollTo({ top: chatRef.current.scrollHeight });
-  }, [sorted.length]);
+  }, [sorted.length, state.plans.length]);
+
+  // Photo lightbox: close on Escape, and lock background scroll while open.
+  useEffect(() => {
+    if (!lightbox) return;
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setLightbox(null);
+    };
+    window.addEventListener("keydown", onKey);
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      window.removeEventListener("keydown", onKey);
+      document.body.style.overflow = previousOverflow;
+    };
+  }, [lightbox]);
 
   const ready = Boolean(participantId && displayName);
 
@@ -409,6 +425,25 @@ export function TripRoom({
     setMyVote(option);
     void postMessage(`vote ${option}`);
   }
+
+  // One PlanCard renderer, shared by the desktop side panel and the mobile
+  // in-chat feed, so plans (photos + per-stop pricing) show on every screen.
+  const renderPlan = (plan: GeneratedPlan) => (
+    <PlanCard
+      key={plan.optionNumber}
+      plan={plan}
+      groupSize={Math.max(1, participants.length)}
+      votes={tallyFor(plan.optionNumber)}
+      activeParticipants={state.vote?.activeParticipants ?? 0}
+      canVote={votable(plan.optionNumber)}
+      winner={
+        state.status === "completed" &&
+        state.vote?.winner?.optionNumber === plan.optionNumber
+      }
+      onVote={() => postMessage(`vote ${plan.optionNumber}`)}
+      onOpenPhoto={(url, alt) => setLightbox({ url, alt })}
+    />
+  );
 
   if (!ready) {
     return (
@@ -659,6 +694,11 @@ export function TripRoom({
                 </div>
               </div>
             )}
+            {hasPlans && (
+              <div className="plans-feed">
+                {state.plans.map(renderPlan)}
+              </div>
+            )}
           </div>
 
           <div className="quick-actions">
@@ -735,23 +775,31 @@ export function TripRoom({
                 : ""}
             </p>
           )}
-          {state.plans.map((plan) => (
-            <PlanCard
-              key={plan.optionNumber}
-              plan={plan}
-              groupSize={Math.max(1, participants.length)}
-              votes={tallyFor(plan.optionNumber)}
-              activeParticipants={state.vote?.activeParticipants ?? 0}
-              canVote={votable(plan.optionNumber)}
-              winner={
-                state.status === "completed" &&
-                state.vote?.winner?.optionNumber === plan.optionNumber
-              }
-              onVote={() => postMessage(`vote ${plan.optionNumber}`)}
-            />
-          ))}
+          {state.plans.map(renderPlan)}
         </aside>
       </div>
+
+      {lightbox && (
+        <div
+          className="lightbox"
+          role="dialog"
+          aria-modal="true"
+          aria-label={lightbox.alt}
+          onClick={() => setLightbox(null)}
+        >
+          <button
+            type="button"
+            className="lightbox-close"
+            aria-label="Close photo"
+            onClick={() => setLightbox(null)}
+          >
+            ✕
+          </button>
+          {/* eslint-disable-next-line @next/next/no-img-element -- external dynamic photo URL */}
+          <img src={lightbox.url} alt={lightbox.alt} onClick={(event) => event.stopPropagation()} />
+          <p className="lightbox-caption">{lightbox.alt}</p>
+        </div>
+      )}
     </main>
   );
 }
@@ -764,6 +812,7 @@ function PlanCard({
   canVote,
   winner,
   onVote,
+  onOpenPhoto,
 }: {
   plan: GeneratedPlan;
   groupSize: number;
@@ -772,6 +821,7 @@ function PlanCard({
   canVote: boolean;
   winner: boolean;
   onVote: () => void;
+  onOpenPhoto: (url: string, alt: string) => void;
 }) {
   const inr = (value: number) => `₹${value.toLocaleString("en-IN")}`;
   return (
@@ -794,19 +844,24 @@ function PlanCard({
       </header>
       {plan.destinationImages && plan.destinationImages.length > 0 && (
         <div className="plan-photos">
-          {plan.destinationImages.map((image) => (
-            <div className="plan-photo" key={image.url}>
-              {/* eslint-disable-next-line @next/next/no-img-element -- external dynamic photo URLs */}
-              <img
-                src={image.url}
-                alt={`${plan.destinationName} — ${image.type.replace("_", " ")}`}
-                loading="lazy"
-              />
-              {image.type !== "hero" && (
-                <span className="plan-photo-tag">{photoLabel(image.type)}</span>
-              )}
-            </div>
-          ))}
+          {plan.destinationImages.map((image) => {
+            const alt = `${plan.destinationName} — ${image.type.replace("_", " ")}`;
+            return (
+              <button
+                type="button"
+                className="plan-photo"
+                key={image.url}
+                onClick={() => onOpenPhoto(image.url, alt)}
+                aria-label={`Enlarge photo: ${alt}`}
+              >
+                {/* eslint-disable-next-line @next/next/no-img-element -- external dynamic photo URLs */}
+                <img src={image.url} alt={alt} loading="lazy" />
+                {image.type !== "hero" && (
+                  <span className="plan-photo-tag">{photoLabel(image.type)}</span>
+                )}
+              </button>
+            );
+          })}
         </div>
       )}
       {plan.whyRecommended && (
