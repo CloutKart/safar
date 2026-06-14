@@ -17,25 +17,98 @@ const KNOWN_PLACES = new Set(
   }),
 );
 
+// Natural-language phrasings the group actually uses, mapped to the canonical
+// interest tag. Matched as whole words (see interestMatchers) so short aliases
+// like "fort"/"pub" don't false-fire inside "comfort"/"public". Cover the 8
+// marketed headline interests (incl. "slow travel") and their common variants.
 const interestAliases: Record<InterestTag, string[]> = {
-  adventure: ["adventure", "adventurous", "thrill", "thrilling"],
-  trekking: ["trek", "trekking", "hike", "hiking"],
-  haunted: ["haunted", "horror", "ghost", "bhoot", "paranormal"],
-  cafes: ["cafe", "cafes", "café", "coffee", "cafe hopping"],
-  food: ["food", "street food", "khana", "foodie", "local cuisine"],
-  nightlife: ["nightlife", "party", "partying", "club", "clubs"],
-  relaxation: ["relax", "relaxing", "chill", "peaceful", "shaanti", "aram"],
-  culture: ["culture", "heritage", "history", "historic", "museum"],
-  wildlife: ["wildlife", "safari", "birds", "birding", "jungle"],
-  photography: ["photography", "photos", "pictures", "instagrammable"],
-  beaches: ["beach", "beaches", "sea", "ocean"],
-  mountains: ["mountain", "mountains", "hills", "pahad"],
-  "road-trip": ["road trip", "roadtrip", "drive"],
-  spiritual: ["spiritual", "temple", "meditation", "ashram"],
-  caves: ["cave", "caves", "caving"],
-  camping: ["camp", "camping", "tent"],
-  rafting: ["rafting", "river rafting", "kayak", "kayaking"],
+  adventure: [
+    "adventure", "adventures", "adventurous", "adventure sport", "adventure sports",
+    "thrill", "thrilling", "adrenaline", "paragliding", "paraglide", "parasailing",
+    "bungee", "bungee jumping", "bungy", "zipline", "ziplining", "zip line",
+    "skydiving", "skydive", "scuba", "scuba diving", "atv", "quad biking", "off-roading",
+  ],
+  trekking: [
+    "trek", "treks", "trekking", "trekkers", "hike", "hikes", "hiking",
+    "trekking trail", "backpacking", "summit climb",
+  ],
+  haunted: [
+    "haunted", "haunted trail", "haunted trails", "horror", "ghost", "ghosts",
+    "ghost tour", "ghost walk", "spooky", "eerie", "creepy", "abandoned",
+    "supernatural", "paranormal", "bhoot",
+  ],
+  cafes: [
+    "cafe", "cafes", "café", "cafe hopping", "cafe-hopping", "café hopping",
+    "coffee", "coffee shop", "roastery", "bakery", "patisserie", "brunch",
+  ],
+  food: [
+    "food", "foods", "street food", "seafood", "food crawl", "food walk", "food trail",
+    "local food", "local cuisine", "khana", "foodie", "dhaba", "thali", "eateries",
+    "delicacies",
+  ],
+  nightlife: [
+    "nightlife", "party", "parties", "partying", "club", "clubs", "clubbing",
+    "bars", "pub", "pubs", "rooftop", "lounge", "live music", "dj", "after dark",
+  ],
+  relaxation: [
+    "relax", "relaxed", "relaxing", "relaxation", "slow travel", "slow trip", "slow pace",
+    "slow down", "leisurely", "leisure", "unwind", "unhurried", "laid back", "laid-back",
+    "no rush", "switch off", "wind down", "detox", "chill", "chilling", "peaceful",
+    "shaanti", "sukoon", "aram",
+  ],
+  culture: [
+    "culture", "cultural", "heritage", "heritage walk", "heritage trail", "heritage stay",
+    "history", "historic", "historical", "museum", "old city", "old town", "fort", "forts",
+    "palace", "palaces", "ruins", "monument", "monuments", "haveli", "havelis",
+    "architecture", "unesco",
+  ],
+  wildlife: [
+    "wildlife", "safari", "safaris", "jungle safari", "birds", "birding", "bird watching",
+    "jungle", "national park", "sanctuary",
+  ],
+  photography: [
+    "photography", "photo", "photos", "photo walk", "pictures", "instagrammable",
+    "instagram", "scenic",
+  ],
+  beaches: [
+    "beach", "beaches", "beachy", "sea", "seaside", "ocean", "shore", "coastline",
+    "surf", "surfing",
+  ],
+  mountains: [
+    "mountain", "mountains", "hills", "hill stations", "himalayas", "snow", "alpine", "pahad",
+  ],
+  "road-trip": [
+    "road trip", "road-trip", "roadtrip", "self drive", "drive", "bike trip", "biking trip",
+  ],
+  spiritual: [
+    "spiritual", "spirituality", "temple", "temples", "meditation", "ashram", "ashrams",
+    "pilgrimage", "monastery", "yoga retreat",
+  ],
+  caves: ["cave", "caves", "caving", "spelunking"],
+  camping: [
+    "camp", "camps", "camping", "campsite", "campfire", "bonfire", "tent", "tents",
+    "glamping", "stargazing",
+  ],
+  rafting: [
+    "rafting", "river rafting", "white water rafting", "whitewater", "kayak", "kayaking",
+    "canoeing",
+  ],
 };
+
+const escapeRe = (value: string) => value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
+// One whole-word matcher per tag: an alternation of its aliases bounded by
+// non-letter/digit edges, so "fort" matches "fort"/"forts" but not "comfort",
+// and "sea" doesn't fire inside "research". Built once at module load.
+const interestMatchers: Record<InterestTag, RegExp> = Object.fromEntries(
+  interestTags.map((tag) => [
+    tag,
+    new RegExp(
+      `(?<![\\p{L}\\p{N}])(?:${interestAliases[tag].map(escapeRe).join("|")})(?![\\p{L}\\p{N}])`,
+      "iu",
+    ),
+  ]),
+) as Record<InterestTag, RegExp>;
 
 const firstPersonPattern =
   /\b(i|i'm|i am|i'd|me|my|we|our|us|let'?s|main|mai|mujhe|mujhko|mera|meri|hum|humein|apna|apne|chaahiye)\b/i;
@@ -238,9 +311,7 @@ function extractExcludedDestination(text: string): MessageExtraction["facts"] {
 
 function extractPreferences(text: string): MessageExtraction["preferences"] {
   const lower = text.toLowerCase();
-  const matches = interestTags.filter((tag) =>
-    interestAliases[tag].some((alias) => lower.includes(alias)),
-  );
+  const matches = interestTags.filter((tag) => interestMatchers[tag].test(lower));
   if (matches.length === 0) return [];
 
   const hasFirstPerson = firstPersonPattern.test(text);
@@ -270,10 +341,9 @@ function extractPreferences(text: string): MessageExtraction["preferences"] {
   const confidence = hasFirstPerson ? 0.82 : hasPreferenceVerb ? 0.74 : 0.62;
 
   return matches.map((tag) => {
-    const alias = interestAliases[tag].find((candidate) =>
-      lower.includes(candidate),
-    );
-    const index = alias ? lower.indexOf(alias) : 0;
+    const hit = interestMatchers[tag].exec(lower);
+    const index = hit ? hit.index : 0;
+    const length = hit ? hit[0].length : 0;
     // Negation binds within a clause: "beaches but no nightlife" negates only
     // nightlife. Look from the last clause break up to the tag, plus a short
     // trailing window for postfix Hinglish negation ("nightlife nahi").
@@ -281,8 +351,7 @@ function extractPreferences(text: string): MessageExtraction["preferences"] {
     // Trailing clause only up to the next break, so "beach, no party" negates
     // party — not beach.
     const after =
-      lower.slice(index + (alias?.length ?? 0)).split(/[,;.]|\band\b|\bbut\b/)[0] ??
-      "";
+      lower.slice(index + length).split(/[,;.]|\band\b|\bbut\b/)[0] ?? "";
     const negative =
       negativePattern.test(before) || negativePattern.test(after);
     return {

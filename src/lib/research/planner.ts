@@ -12,6 +12,12 @@ import { generateStructured } from "@/lib/ai/client";
 import { researchDestination } from "@/lib/research/search";
 import { getPriceQuotes, type SupplierQuote } from "@/lib/research/pricing";
 import { getGems, gemKey, isHiddenGem, type Gem } from "@/lib/research/gems";
+import {
+  buildPreferenceFocus,
+  preferredGemNames,
+  TAG_EXPERIENCES,
+  type PreferenceFocus,
+} from "@/lib/research/preferences";
 import { planPhotos } from "@/lib/research/photos";
 
 function groupWeights(summary: TripSummary): Map<InterestTag, number> {
@@ -129,11 +135,29 @@ function scorePlanMatch(input: {
   return { matchScore, whyRecommended };
 }
 
+// How well a highlight line matches the group's top interests (higher-ranked
+// interests count for more), via the per-interest name regexes.
+function highlightTagScore(text: string, tags: InterestTag[]): number {
+  let score = 0;
+  tags.forEach((tag, index) => {
+    if (TAG_EXPERIENCES[tag].match.test(text)) score += tags.length - index;
+  });
+  return score;
+}
+
 function activitiesFor(
   destination: CuratedDestination,
   angle: GeneratedPlan["angle"],
+  tags: InterestTag[] = [],
 ): string[] {
-  const base = destination.highlights;
+  // Float highlights that match the group's interests to the front, so even the
+  // template plan leans toward what they asked for; then apply the angle order.
+  const base =
+    tags.length > 0
+      ? [...destination.highlights].sort(
+          (a, b) => highlightTagScore(b, tags) - highlightTagScore(a, tags),
+        )
+      : destination.highlights;
   let ordered: (string | undefined)[];
   if (angle === "adventurous") {
     ordered = [
@@ -197,8 +221,12 @@ function fallbackItinerary(
   destination: CuratedDestination,
   days: number,
   angle: GeneratedPlan["angle"],
+  gems: Gem[] = [],
+  tags: InterestTag[] = [],
 ): GeneratedPlan["itinerary"] {
-  const acts = activitiesFor(destination, angle);
+  const acts = activitiesFor(destination, angle, tags);
+  // Real, named food spots to use instead of a generic "food stop" — one per day.
+  const foodSpots = gems.filter((gem) => gem.type === "food").map((gem) => gem.name);
   return Array.from({ length: days }, (_, index) => {
     const picks =
       index === 0
@@ -219,10 +247,13 @@ function fallbackItinerary(
           approxInr: stopCostInr(kind, destination),
         };
       });
+    const foodName = foodSpots.length
+      ? foodSpots[index % foodSpots.length]
+      : null;
     stops.push({
-      name: "Local café or food stop",
+      name: foodName ?? "Local café or food stop",
       kind: "food",
-      note: "",
+      note: foodName ? "well-rated local eatery" : "",
       approxInr: stopCostInr("food", destination),
     });
     return {
@@ -245,6 +276,7 @@ function injectGems(
   itinerary: GeneratedPlan["itinerary"],
   gems: Gem[],
   destination: CuratedDestination,
+  preferred: Set<string> = new Set(),
 ): GeneratedPlan["itinerary"] {
   if (gems.length === 0) return itinerary;
   const present = itinerary.flatMap((day) =>
@@ -257,9 +289,14 @@ function injectGems(
       const key = gemKey(gem.name);
       return key.length > 0 && !present.some((name) => name.includes(key) || key.includes(name));
     })
-    // Inject genuinely lesser-known spots first — the headline sights are
-    // already in the LLM's day plan.
-    .sort((a, b) => Number(isHiddenGem(b)) - Number(isHiddenGem(a)));
+    // Float gems that match the group's interests first, then genuinely
+    // lesser-known spots — the headline sights are already in the day plan.
+    .sort((a, b) => {
+      const pref =
+        Number(preferred.has(b.name.toLowerCase())) -
+        Number(preferred.has(a.name.toLowerCase()));
+      return pref !== 0 ? pref : Number(isHiddenGem(b)) - Number(isHiddenGem(a));
+    });
   // Inject one gem per day that still has room, keeping pacing (max ~5 stops).
   let cursor = 0;
   return itinerary.map((day) => {
@@ -300,6 +337,8 @@ Rules:
   - For longer trips, vary the rhythm: mix exploration days with at least one chill/lighter day so it never feels exhausting or wastefully stretched.
 - Every day must blend POPULAR must-see landmarks with at least one genuine lesser-known "hidden-gem", and at least one "food" stop naming a real local dish or eatery. Order stops in a natural daily flow (morning → afternoon → evening). Big sights (forts, palaces, treks) take half a day — budget time for them and don't overstuff.
 - You are given "localGems" — real, verified local spots for this place. Prefer them for your hidden-gem and sightseeing stops, weaving them into the days with a short reason; only invent a spot if the gems don't cover a day.
+- The group's actual interests are in "group.preferenceFocus" — each has a "means" (what that interest looks like as real experiences) and real candidate "places". For EACH interest listed, include at least one specific, NAMED stop that genuinely delivers it: prefer the given "places"; if none are given, use a real, specific spot that fits the "means". If this destination genuinely cannot support an interest, skip it silently — never fake or force it.
+- Name real, specific places. Never use generic placeholders like "a local cafe", "a viewpoint", "the local market" or "a nice restaurant" — always name the actual spot.
 - Name a realistic mid-range "stay" per day (a real, plausible property/area for that place), with a per-night per-person estimate.
 - "approxInr" is a rough PER-PERSON estimate for that stop (entry, ride, meal). Use null when free. These are estimates, not quotes; keep them realistic for India and within the group's budget.
 - Ground everything in the provided destination highlights, cautions and research. Respect the group's days, budget and hard constraints. Never recommend anything the cautions warn against.
@@ -318,6 +357,7 @@ async function enrichItinerary(input: {
   quotes: SupplierQuote[];
   research: Array<{ title: string; publisher: string; url: string }>;
   gems: Gem[];
+  preferenceFocus: PreferenceFocus[];
 }): Promise<z.infer<typeof PlanDetailSchema> | null> {
   const context = {
     angle: input.angle,
@@ -340,9 +380,9 @@ async function enrichItinerary(input: {
       departureCities: input.summary.departureCities,
       budgetInr: input.summary.budget,
       dates: input.summary.dates,
-      preferences: input.summary.memberPreferences.flatMap((member) =>
-        member.interests.map((interest) => interest.tag),
-      ),
+      // Ranked interests with what each means + real candidate places, so the
+      // LLM curates a specific named stop per preference (not a generic list).
+      preferenceFocus: input.preferenceFocus,
       hardConstraints: input.summary.hardConstraints,
     },
     pricingPerPersonInr: Object.fromEntries(
@@ -505,6 +545,11 @@ export async function generatePlans(
         .filter((tag) => (weights.get(tag) ?? 0) > 0)
         .sort((a, b) => (weights.get(b) ?? 0) - (weights.get(a) ?? 0));
 
+      // The group's interests ranked + backed by real candidate places from
+      // this destination's gem pool — drives both the LLM prompt and the
+      // fallback so plans curate per preference instead of generically.
+      const preferenceFocus = buildPreferenceFocus(weights, gems);
+
       // LLM-written specifics, grounded in the catalog + pricing + research.
       // Falls back to a generic template when no LLM is configured.
       // Run the LLM and photo lookups concurrently.
@@ -517,11 +562,13 @@ export async function generatePlans(
           quotes,
           research,
           gems,
+          preferenceFocus,
         }),
         planPhotos(destination.name, gems).catch(() => []),
       ]);
       const baseItinerary =
-        detail?.itinerary ?? fallbackItinerary(destination, days, angle);
+        detail?.itinerary ??
+        fallbackItinerary(destination, days, angle, gems, matchedTags);
       // When a live stay provider returned a real bookable hotel, use it for
       // every night (more trustworthy than the LLM's invented name).
       const stayQuote = quotes.find((quote) => quote.category === "stay");
@@ -536,8 +583,14 @@ export async function generatePlans(
               },
             }))
           : baseItinerary;
-      // Guarantee real, verified hidden gems appear even without an LLM.
-      const itinerary = injectGems(withStay, gems, destination);
+      // Guarantee real, verified hidden gems appear even without an LLM, and
+      // float the ones that match the group's interests to the front.
+      const itinerary = injectGems(
+        withStay,
+        gems,
+        destination,
+        preferredGemNames(preferenceFocus),
+      );
       const planSummary =
         detail?.summary ||
         `${days} days built around ${matchedTags.slice(0, 4).join(", ") || destination.tags.slice(0, 4).join(", ")} without breaking the group’s stated hard constraints.`;
