@@ -26,6 +26,7 @@ import type { FreeWindow } from "@/lib/trip/availability";
 import { vibesLabel } from "@/lib/trip/vibe";
 import { VibeStage } from "@/components/vibe-scene";
 import { JourneyMapHeader } from "@/components/journey-map";
+import { MoodboardHeader } from "@/components/moodboard-header";
 import { TripExports } from "@/components/trip-exports";
 import { lookupCoords } from "@/lib/cityCoords";
 import { fetchWeather, type WeatherSummary } from "@/lib/weather";
@@ -843,6 +844,9 @@ export function TripRoom({
     <main className="room" data-vibe={state.vibe}>
       <header className="island">
         <VibeStage vibes={state.vibes} />
+        {hasPlans && state.status !== "completed" && (
+          <MoodboardHeader plans={state.plans} />
+        )}
         {state.status === "completed" && state.vote?.winner && (
           <JourneyMapHeader
             departure={state.departureCities[0] ?? null}

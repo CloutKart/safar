@@ -731,3 +731,52 @@ a { color: inherit; }
   .print-sheet .print-sources li { font-size: 9pt; color: #555; word-break: break-all; }
   .print-sheet .print-foot { margin-top: 24px; color: #888; font-size: 9pt; }
 }
+
+/* ── Phase 6.1: dark mode synced to the system ────────────────────────────────
+   The trip room/gate are already dark (--r-*). This dims the light marketing +
+   dashboard surfaces. Placed last so the overrides win the cascade under dark. */
+@media (prefers-color-scheme: dark) {
+  :root {
+    --ink: #e8efe9;
+    --muted: #9fb0a8;
+    --paper: #0c1311;
+    --card: #141d1a;
+    --line: rgba(255, 255, 255, 0.12);
+    --green: #36b07e;
+    --lime: #c7e86a;
+    --orange: #e88a5c;
+  }
+  body {
+    background:
+      radial-gradient(circle at 12% 8%, rgba(69, 201, 138, 0.1), transparent 22rem),
+      radial-gradient(circle at 92% 28%, rgba(230, 111, 60, 0.07), transparent 24rem),
+      var(--paper);
+  }
+  /* Marketing/dashboard surfaces that hardcode light colours */
+  .interest-strip span { background: rgba(255, 255, 255, 0.05); }
+  .creator-card input,
+  .invite-url { background: #18231f; color: var(--ink); }
+  .creator-card input::placeholder { color: var(--muted); }
+  .phone { background: #16201c; border-color: rgba(255, 255, 255, 0.22); }
+  .chat { background: #0f1714; }
+  .bubble { background: #1b2723; color: var(--ink); box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3); }
+  .bubble.bot { background: #2a1d12; }
+  .invite-result { background: rgba(199, 232, 106, 0.12); }
+  .status { background: rgba(199, 232, 106, 0.14); color: var(--lime); }
+}
+
+/* ── Phase 6.2: evolving mood-board header ────────────────────────────────────
+   The plans' real photos fade into the island behind the title (under the veil,
+   above the vibe scene). Sits between .vibe-stage and .island-veil in the DOM. */
+.moodboard { position: absolute; inset: 0; display: grid; gap: 2px; opacity: 0; animation: moodIn 1.2s ease forwards; }
+.moodboard[data-count="1"] { grid-template-columns: 1fr; }
+.moodboard[data-count="2"] { grid-template-columns: 1fr 1fr; }
+.moodboard[data-count="3"],
+.moodboard[data-count="4"] { grid-template-columns: 1fr 1fr; grid-auto-rows: 1fr; }
+.moodboard img { width: 100%; height: 100%; object-fit: cover; opacity: 0; transition: opacity 0.8s ease; }
+.moodboard img.loaded { opacity: 1; }
+@keyframes moodIn { to { opacity: 0.62; } }
+@media (prefers-reduced-motion: reduce) {
+  .moodboard { animation: none; opacity: 0.62; }
+  .moodboard img { transition: none; }
+}
