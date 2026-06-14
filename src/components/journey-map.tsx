@@ -2,12 +2,7 @@
 
 import dynamic from "next/dynamic";
 import { useEffect, useState } from "react";
-import {
-  geocodeCity,
-  haversineKm,
-  lookupCoords,
-  type LatLng,
-} from "@/lib/cityCoords";
+import { geocodeCity, lookupCoords, type LatLng } from "@/lib/cityCoords";
 
 // Leaflet needs the DOM — load the map only on the client, after coords resolve.
 const JourneyMapInner = dynamic(() => import("@/components/journey-map-inner"), {
@@ -16,21 +11,13 @@ const JourneyMapInner = dynamic(() => import("@/components/journey-map-inner"), 
 
 type Resolved = { from: LatLng | null; to: LatLng | null };
 
-// Posted by Safar inline once a winner is declared: a celebratory route from the
-// group's departure city to the winning destination.
-export function JourneyMapMessage({
-  departure,
-  destinationSlug,
-  destinationName,
-  planLabel,
-}: {
-  departure: string | null;
-  destinationSlug: string;
-  destinationName: string;
-  planLabel: string;
-}) {
-  // Resolve synchronously from the static table when possible; only fall back to
-  // a network geocode (and a re-render) when something is missing.
+// Resolve departure + destination coordinates: synchronously from the static
+// table when possible, else a one-shot Nominatim geocode (with a timeout).
+function useResolvedCoords(
+  departure: string | null,
+  destinationSlug: string,
+  destinationName: string,
+): Resolved | null {
   const [resolved, setResolved] = useState<Resolved | null>(() => {
     const from = departure ? lookupCoords(departure) : null;
     const to = lookupCoords(destinationSlug) ?? lookupCoords(destinationName);
@@ -57,34 +44,33 @@ export function JourneyMapMessage({
     };
   }, [resolved, departure, destinationSlug, destinationName]);
 
-  const from = resolved?.from ?? null;
-  const to = resolved?.to ?? null;
-  const distance = from && to ? haversineKm(from, to) : null;
+  return resolved;
+}
 
+// Full-bleed animated route that becomes the trip-room header once a winner is
+// chosen — the dashed line draws from the departure city to the destination
+// behind the title/veil. Renders nothing until coords resolve, so the
+// illustrated vibe scene shows through as the fallback.
+export function JourneyMapHeader({
+  departure,
+  destinationSlug,
+  destinationName,
+}: {
+  departure: string | null;
+  destinationSlug: string;
+  destinationName: string;
+}) {
+  const resolved = useResolvedCoords(departure, destinationSlug, destinationName);
+  const to = resolved?.to ?? null;
+  if (!to) return null;
   return (
-    <article className="msg msg-bot journey-msg">
-      <span className="msg-avatar bot">S</span>
-      <div className="msg-main">
-        <span className="msg-author">Safar</span>
-        <div className="bubble journey-map">
-          {to ? (
-            <JourneyMapInner from={from} to={to} destinationName={destinationName} />
-          ) : (
-            <div className="journey-leaflet journey-fallback">
-              Your journey to {destinationName}
-            </div>
-          )}
-          <div className="journey-footer">
-            <span className="journey-route">
-              {departure ? `${departure} → ${destinationName}` : destinationName}
-            </span>
-            <span className="journey-sub">
-              {planLabel}
-              {distance != null ? ` · ~${distance.toLocaleString("en-IN")} km` : ""}
-            </span>
-          </div>
-        </div>
-      </div>
-    </article>
+    <div className="journey-island">
+      <JourneyMapInner
+        from={resolved?.from ?? null}
+        to={to}
+        destinationName={destinationName}
+        fill
+      />
+    </div>
   );
 }

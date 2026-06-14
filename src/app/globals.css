@@ -449,6 +449,15 @@ a { color: inherit; }
 .journey-leaflet .leaflet-container { background: #0e1714; font: inherit; }
 .journey-leaflet .leaflet-control-attribution { background: rgba(8,14,12,.6); color: var(--r-faint); font-size: 9px; }
 .journey-leaflet .leaflet-control-attribution a { color: var(--r-muted); }
+
+/* Journey route as the room header: fills the island behind the veil + title
+   once a winner is chosen. isolation:isolate contains Leaflet's internal
+   z-indexes so map panes can't paint over the title/avatars. */
+.journey-island { position: absolute; inset: 0; isolation: isolate; }
+/* Scoped under .journey-island so it beats the mobile .journey-leaflet height. */
+.journey-island .journey-leaflet--fill { position: absolute; inset: 0; width: 100%; height: 100%; border-radius: 0; background: transparent; }
+.journey-island .leaflet-control-attribution { font-size: 8px; padding: 0 5px; background: rgba(8,14,12,.45); color: rgba(255,255,255,.5); }
+.journey-island .leaflet-control-attribution a { color: rgba(255,255,255,.62); }
 .journey-footer { display: flex; flex-direction: column; gap: 2px; padding: 9px 6px 3px; }
 .journey-route { font-size: 14px; font-weight: 500; color: var(--r-ink); }
 .journey-sub { font-size: 11.5px; color: var(--r-muted); }

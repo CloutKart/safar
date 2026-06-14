@@ -19,7 +19,7 @@ import type { ReactionSummary, ThreadMessage } from "@/lib/store/types";
 import type { RoomState } from "@/lib/trip/room";
 import { vibesLabel } from "@/lib/trip/vibe";
 import { VibeStage } from "@/components/vibe-scene";
-import { JourneyMapMessage } from "@/components/journey-map";
+import { JourneyMapHeader } from "@/components/journey-map";
 import { lookupCoords } from "@/lib/cityCoords";
 import { fetchWeather, type WeatherSummary } from "@/lib/weather";
 
@@ -718,6 +718,13 @@ export function TripRoom({
     <main className="room" data-vibe={state.vibe}>
       <header className="island">
         <VibeStage vibes={state.vibes} />
+        {state.status === "completed" && state.vote?.winner && (
+          <JourneyMapHeader
+            departure={state.departureCities[0] ?? null}
+            destinationSlug={state.vote.winner.content.destinationSlug}
+            destinationName={state.vote.winner.content.destinationName}
+          />
+        )}
         <div className="island-veil" />
         <div className="island-content">
           <div className="island-bar">
@@ -986,14 +993,6 @@ export function TripRoom({
                   </>
                 )}
               </div>
-            )}
-            {state.status === "completed" && state.vote?.winner && (
-              <JourneyMapMessage
-                departure={state.departureCities[0] ?? null}
-                destinationSlug={state.vote.winner.content.destinationSlug}
-                destinationName={state.vote.winner.content.destinationName}
-                planLabel={state.vote.winner.content.title}
-              />
             )}
           </div>
 
