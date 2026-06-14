@@ -565,6 +565,10 @@ a { color: inherit; }
     gap: 0;
     display: flex;
     flex-direction: column;
+    /* Reset the desktop grid's align-items:start — in this flex column it would
+       size children to their content width (≈2× the screen) instead of the
+       viewport, which was clipping cards + the send button on phones. */
+    align-items: stretch;
   }
   .chat-panel {
     flex: 1;
