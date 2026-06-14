@@ -138,4 +138,57 @@ describe("deterministic conversation extraction", () => {
     );
     expect(result.facts.every((fact) => !fact.isHard)).toBe(true);
   });
+
+  // Every headline interest the landing page markets must be detectable from a
+  // natural first-person phrasing — "slow travel" was previously dropped.
+  it.each([
+    ["I love haunted trails", "haunted"],
+    ["we want cafe hopping", "cafes"],
+    ["I'm into trekking", "trekking"],
+    ["I'm up for adventure sports", "adventure"],
+    ["I love street food", "food"],
+    ["I want some nightlife", "nightlife"],
+    ["I prefer slow travel", "relaxation"],
+    ["I'm into heritage", "culture"],
+  ])("detects the headline interest in %j", (text, tag) => {
+    const result = extractDeterministically(text);
+    expect(result.preferences.map((p) => p.tag)).toContain(tag);
+    expect(result.preferences.find((p) => p.tag === tag)?.weight).toBe(1);
+  });
+
+  it("catches natural variants beyond the bare keyword", () => {
+    expect(
+      extractDeterministically("I want to go paragliding and ziplining").preferences.map(
+        (p) => p.tag,
+      ),
+    ).toContain("adventure");
+    expect(
+      extractDeterministically("I'd love a ghost tour of the old forts").preferences.map(
+        (p) => p.tag,
+      ),
+    ).toEqual(expect.arrayContaining(["haunted", "culture"]));
+    expect(
+      extractDeterministically("looking for a leisurely, unhurried trip").preferences.map(
+        (p) => p.tag,
+      ),
+    ).toContain("relaxation");
+  });
+
+  // Word-boundary matching: short aliases must not fire inside larger words.
+  it("does not false-fire on substrings of unrelated words", () => {
+    expect(
+      extractDeterministically("I want a comfortable stay").preferences.map((p) => p.tag),
+    ).not.toContain("culture"); // "fort" ⊄ "comfortable"
+    expect(
+      extractDeterministically("I prefer public transport").preferences.map((p) => p.tag),
+    ).not.toContain("nightlife"); // "pub" ⊄ "public"
+    expect(
+      extractDeterministically("we walked slowly through the lanes").preferences.map(
+        (p) => p.tag,
+      ),
+    ).not.toContain("relaxation"); // bare "slow" is not an alias; "slowly" ⊄ "slow down"
+    const barbecue = extractDeterministically("I want a barbecue on the beach");
+    expect(barbecue.preferences.map((p) => p.tag)).toContain("beaches");
+    expect(barbecue.preferences.map((p) => p.tag)).not.toContain("nightlife"); // "bars" ⊄ "barbecue"
+  });
 });

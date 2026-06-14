@@ -7,6 +7,8 @@ import type {
   TripSummary,
 } from "@/lib/domain";
 import type {
+  MemberAvailability,
+  MessageHeard,
   QueuedWebhook,
   ReactionSummary,
   SafarStore,
@@ -25,8 +27,15 @@ interface MemoryState {
   groups: StoredGroup[];
   participants: StoredParticipant[];
   messages: StoredMessage[];
-  facts: Array<StoredFact & { groupId: string }>;
-  preferences: Array<StoredPreference & { groupId: string; waId: string }>;
+  facts: Array<StoredFact & { groupId: string; evidenceMessageId: string }>;
+  preferences: Array<
+    StoredPreference & { groupId: string; waId: string; evidenceMessageId: string }
+  >;
+  availability: Array<{
+    groupId: string;
+    participantId: string;
+    unavailableDates: string[];
+  }>;
   summaries: StoredSummary[];
   approvals: Array<{
     summaryId: string;
@@ -61,6 +70,7 @@ function emptyState(): MemoryState {
     plans: [],
     votes: [],
     reactions: [],
+    availability: [],
     webhooks: [],
   };
 }
@@ -262,6 +272,7 @@ export class MemorySafarStore implements SafarStore {
       this.state.facts.push({
         groupId: input.groupId,
         participantId: input.participant.id,
+        evidenceMessageId: input.messageId,
         kind: fact.kind,
         value: fact.value,
         confidence: fact.confidence,
@@ -274,6 +285,7 @@ export class MemorySafarStore implements SafarStore {
         groupId: input.groupId,
         participantId: input.participant.id,
         waId: input.participant.waId,
+        evidenceMessageId: input.messageId,
         tag: preference.tag,
         weight: preference.weight,
         confidence: preference.confidence,
@@ -306,6 +318,64 @@ export class MemorySafarStore implements SafarStore {
           confidence: preference.confidence,
         })),
     );
+  }
+
+  async getHeard(groupId: string): Promise<Map<string, MessageHeard>> {
+    // Translate the internal message id stored on each evidence row to the
+    // public wa_message_id the thread is keyed by.
+    const idToWa = new Map(
+      this.state.messages
+        .filter((message) => message.groupId === groupId)
+        .map((message) => [message.id, message.waMessageId]),
+    );
+    const result = new Map<string, MessageHeard>();
+    const ensure = (waMessageId: string) => {
+      const entry = result.get(waMessageId) ?? { facts: [], interests: [] };
+      result.set(waMessageId, entry);
+      return entry;
+    };
+    for (const fact of this.state.facts.filter((f) => f.groupId === groupId)) {
+      const wa = idToWa.get(fact.evidenceMessageId);
+      if (!wa) continue;
+      ensure(wa).facts.push({ kind: fact.kind, value: fact.value });
+    }
+    for (const pref of this.state.preferences.filter((p) => p.groupId === groupId)) {
+      const wa = idToWa.get(pref.evidenceMessageId);
+      if (!wa) continue;
+      const entry = ensure(wa);
+      if (!entry.interests.includes(pref.tag)) entry.interests.push(pref.tag);
+    }
+    return result;
+  }
+
+  async setAvailability(input: {
+    groupId: string;
+    participantId: string;
+    unavailableDates: string[];
+  }): Promise<void> {
+    this.state.availability = this.state.availability.filter(
+      (a) => !(a.groupId === input.groupId && a.participantId === input.participantId),
+    );
+    this.state.availability.push({
+      groupId: input.groupId,
+      participantId: input.participantId,
+      unavailableDates: [...input.unavailableDates],
+    });
+  }
+
+  async getAvailability(groupId: string): Promise<MemberAvailability[]> {
+    return this.state.availability
+      .filter((a) => a.groupId === groupId)
+      .map((a) => {
+        const participant = this.state.participants.find(
+          (item) => item.id === a.participantId,
+        );
+        return {
+          participantId: participant?.waId ?? a.participantId,
+          displayName: participant?.displayName ?? null,
+          unavailableDates: [...a.unavailableDates],
+        };
+      });
   }
 
   async getRecentMessages(

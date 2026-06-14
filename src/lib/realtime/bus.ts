@@ -5,7 +5,10 @@ import { env } from "@/lib/env";
 export type RoomEvent =
   | { type: "message"; message: ThreadMessage }
   | { type: "reaction"; messageId: string; reactions: ReactionSummary[] }
-  | { type: "typing"; who: string; on: boolean };
+  | { type: "typing"; who: string; on: boolean }
+  // A generic "room state changed, please refetch" ping (e.g. availability
+  // updates) — carries no payload of its own.
+  | { type: "refresh" };
 
 // Mirror every event to a Supabase Realtime channel so it reaches tabs on other
 // serverless instances / devices (the in-process bus only covers one instance).

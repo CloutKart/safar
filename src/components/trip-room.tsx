@@ -15,8 +15,14 @@ import {
 } from "react";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import type { GeneratedPlan } from "@/lib/domain";
-import type { ReactionSummary, ThreadMessage } from "@/lib/store/types";
-import type { RoomState } from "@/lib/trip/room";
+import type {
+  MemberAvailability,
+  MessageHeard,
+  ReactionSummary,
+  ThreadMessage,
+} from "@/lib/store/types";
+import type { RoomState, RoomSummary } from "@/lib/trip/room";
+import type { FreeWindow } from "@/lib/trip/availability";
 import { vibesLabel } from "@/lib/trip/vibe";
 import { VibeStage } from "@/components/vibe-scene";
 import { JourneyMapHeader } from "@/components/journey-map";
@@ -56,7 +62,8 @@ const AVATAR_COLORS = [
 type RoomEvent =
   | { type: "message"; message: ThreadMessage }
   | { type: "reaction"; messageId: string; reactions: ReactionSummary[] }
-  | { type: "typing"; who: string; on: boolean };
+  | { type: "typing"; who: string; on: boolean }
+  | { type: "refresh" };
 
 function avatarColor(id: string): string {
   let hash = 0;
@@ -93,6 +100,59 @@ function photoLabel(type: "hero" | "popular" | "hidden_gem" | "culture"): string
     : type === "culture"
       ? "Food"
       : "Popular";
+}
+
+// Display labels for the internal interest tags — surfaces the marketed wording
+// ("slow travel", "heritage") so the chips read the way the group spoke.
+const TAG_LABEL: Record<string, string> = {
+  relaxation: "slow travel",
+  culture: "heritage",
+};
+function interestLabel(tag: string): string {
+  return TAG_LABEL[tag] ?? tag.replace(/-/g, " ");
+}
+
+// One-token rendering of a parsed trip fact for the "Safar heard" chip.
+function heardFactLabel(kind: string, value: unknown): string | null {
+  const text = Array.isArray(value) ? value.join(", ") : String(value);
+  const inr = (raw: string) => `₹${Number(raw).toLocaleString("en-IN")}`;
+  switch (kind) {
+    case "origin":
+      return `📍 from ${text}`;
+    case "destination":
+      return `🎯 ${text}`;
+    case "exclude_destination":
+      return `🚫 ${text}`;
+    case "start_date":
+      return `🗓 ${text}`;
+    case "end_date":
+      return `→ ${text}`;
+    case "duration_days":
+      return `🗓 ${text} days`;
+    case "budget_max":
+      return `💰 ≤ ${inr(text)}`;
+    case "budget_min":
+      return `💰 ≥ ${inr(text)}`;
+    case "transport":
+      return `🚗 ${text}`;
+    case "restriction":
+      return `⚠ ${text}`;
+    default:
+      return null;
+  }
+}
+
+// "2026-06-18" + "2026-06-22" → "Jun 18–22".
+function fmtRange(startISO: string, endISO: string): string {
+  const start = new Date(`${startISO}T00:00:00`);
+  const end = new Date(`${endISO}T00:00:00`);
+  const left = start.toLocaleDateString("en-IN", { month: "short", day: "numeric" });
+  if (startISO === endISO) return left;
+  const right =
+    end.getMonth() === start.getMonth()
+      ? String(end.getDate())
+      : end.toLocaleDateString("en-IN", { month: "short", day: "numeric" });
+  return `${left}–${right}`;
 }
 
 // The bot speaks light markdown (*bold*). Render that inline, preserving newlines.
@@ -137,6 +197,12 @@ const IconPlus = (
 const IconPoll = (
   <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
     <path d="M5 20V11M12 20V4M19 20v-6" />
+  </svg>
+);
+const IconSearch = (
+  <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <circle cx="11" cy="11" r="7" />
+    <path d="M21 21l-4.3-4.3" />
   </svg>
 );
 
@@ -239,6 +305,10 @@ export function TripRoom({
   const [replyTo, setReplyTo] = useState<{ id: string; author: string; text: string } | null>(null);
   const [sheetFor, setSheetFor] = useState<string | null>(null);
   const [pinnedMessageId, setPinnedMessageId] = useState<string | null>(null);
+  const [memberPopFor, setMemberPopFor] = useState<string | null>(null);
+  const [searchOpen, setSearchOpen] = useState(false);
+  const [searchTerm, setSearchTerm] = useState("");
+  const [searchPos, setSearchPos] = useState(0);
   const chatRef = useRef<HTMLDivElement>(null);
   const carouselRef = useRef<HTMLDivElement>(null);
   const touchRef = useRef<{
@@ -321,6 +391,8 @@ export function TripRoom({
           const others = prev.filter((name) => name !== payload.who);
           return payload.on ? [...others, payload.who] : others;
         });
+      } else if (payload.type === "refresh") {
+        void refetchState();
       }
     },
     [mergeMessages, refetchState],
@@ -391,6 +463,42 @@ export function TripRoom({
       document.body.style.overflow = previousOverflow;
     };
   }, [lightbox]);
+
+  // In-room search: message ids whose text contains the term (case-insensitive).
+  const searchHits = useMemo(() => {
+    const q = searchTerm.trim().toLowerCase();
+    if (!q) return [] as string[];
+    return sorted
+      .filter((message) => (message.text ?? "").toLowerCase().includes(q))
+      .map((message) => message.id);
+  }, [sorted, searchTerm]);
+  const activeHitId =
+    searchHits.length > 0 ? searchHits[searchPos % searchHits.length] : null;
+
+  // Scroll the current search hit into view.
+  useEffect(() => {
+    if (!searchOpen || !activeHitId) return;
+    const safe =
+      typeof CSS !== "undefined" && CSS.escape ? CSS.escape(activeHitId) : activeHitId;
+    document
+      .querySelector(`[data-mid="${safe}"]`)
+      ?.scrollIntoView({ block: "center", behavior: "smooth" });
+  }, [searchOpen, activeHitId]);
+
+  // Close the member-preference popover on Escape or an outside click.
+  useEffect(() => {
+    if (!memberPopFor) return;
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setMemberPopFor(null);
+    };
+    const onClick = () => setMemberPopFor(null);
+    window.addEventListener("keydown", onKey);
+    window.addEventListener("click", onClick);
+    return () => {
+      window.removeEventListener("keydown", onKey);
+      window.removeEventListener("click", onClick);
+    };
+  }, [memberPopFor]);
 
   const ready = Boolean(participantId && displayName);
 
@@ -595,6 +703,22 @@ export function TripRoom({
     }
   }
 
+  // Nudge members who haven't voted: a prefilled share (native sheet → WhatsApp).
+  async function nudge() {
+    haptic(8);
+    const url = window.location.href;
+    const text = `We still need your vote on our trip plans 👉 ${url}`;
+    if (typeof navigator !== "undefined" && navigator.share) {
+      try {
+        await navigator.share({ title: "Safar — vote on our trip", text, url });
+        return;
+      } catch {
+        // cancelled or unsupported; fall through to wa.me
+      }
+    }
+    window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, "_blank");
+  }
+
   // Voting is open as soon as plans exist (mirrors the server) — don't wait for
   // the group row's status to catch up to "voting", which can lag on Supabase.
   const votingOpen = state.plans.length > 0 && state.status !== "completed";
@@ -738,23 +862,74 @@ export function TripRoom({
             <button
               type="button"
               className="icon-btn"
+              onClick={() => {
+                setSearchOpen((open) => !open);
+                setSearchTerm("");
+              }}
+              aria-label="Search messages"
+            >
+              {IconSearch}
+            </button>
+            <button
+              type="button"
+              className="icon-btn"
               onClick={copyLink}
               aria-label="Share trip link"
             >
               {copied ? IconCheck : IconShare}
             </button>
           </div>
+          {searchOpen && (
+            <div className="room-search">
+              <input
+                className="room-search-input"
+                value={searchTerm}
+                onChange={(event) => {
+                  setSearchTerm(event.target.value);
+                  setSearchPos(0);
+                }}
+                placeholder="Search this chat…"
+                autoFocus
+              />
+              <span className="room-search-count">
+                {searchHits.length > 0 ? `${(searchPos % searchHits.length) + 1}/${searchHits.length}` : "0/0"}
+              </span>
+              <button
+                type="button"
+                className="icon-btn ghost"
+                aria-label="Previous match"
+                disabled={searchHits.length === 0}
+                onClick={() => setSearchPos((p) => (p - 1 + searchHits.length) % searchHits.length)}
+              >
+                ↑
+              </button>
+              <button
+                type="button"
+                className="icon-btn ghost"
+                aria-label="Next match"
+                disabled={searchHits.length === 0}
+                onClick={() => setSearchPos((p) => (p + 1) % searchHits.length)}
+              >
+                ↓
+              </button>
+            </div>
+          )}
           <div className="island-presence">
             <div className="avatar-stack">
               {participants.slice(0, 4).map((member) => (
-                <span
+                <button
                   key={member.id}
+                  type="button"
                   className="stack-avatar"
                   style={{ background: avatarColor(member.id) }}
-                  title={member.name}
+                  title={`${member.name} — tap for preferences`}
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    setMemberPopFor((open) => (open === member.id ? null : member.id));
+                  }}
                 >
                   {initial(member.name)}
-                </span>
+                </button>
               ))}
               {participants.length > 4 && (
                 <span className="stack-avatar more">+{participants.length - 4}</span>
@@ -763,6 +938,45 @@ export function TripRoom({
                 <span className="stack-avatar more">+0</span>
               )}
             </div>
+            {memberPopFor &&
+              (() => {
+                const member = participants.find((p) => p.id === memberPopFor);
+                if (!member) return null;
+                const colour = avatarColor(member.id);
+                const prefs = state.summary?.memberPreferences.find(
+                  (m) => m.participantId === memberPopFor,
+                );
+                const likes = prefs?.interests.filter((i) => i.weight > 0) ?? [];
+                const avoids = prefs?.interests.filter((i) => i.weight < 0) ?? [];
+                return (
+                  <div className="member-pop" onClick={(event) => event.stopPropagation()}>
+                    <p className="member-pop-name">
+                      <span className="summary-dot" style={{ background: colour }} />
+                      {member.name}
+                    </p>
+                    {likes.length === 0 && avoids.length === 0 ? (
+                      <p className="member-pop-empty">Nothing captured yet.</p>
+                    ) : (
+                      <div className="member-pop-tags">
+                        {likes.map((interest) => (
+                          <span
+                            key={interest.tag}
+                            className="ptag"
+                            style={{ borderColor: colour, color: colour }}
+                          >
+                            {interestLabel(interest.tag)}
+                          </span>
+                        ))}
+                        {avoids.map((interest) => (
+                          <span key={interest.tag} className="ptag avoid">
+                            ✕ {interestLabel(interest.tag)}
+                          </span>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                );
+              })()}
             <div className="presence-meta">
               <span className="presence-status">
                 <span className="presence-dot" />
@@ -780,20 +994,34 @@ export function TripRoom({
       {votingOpen && state.votingClosesAt && (
         <Countdown closesAt={state.votingClosesAt} />
       )}
-      {pinnedMessageId && messages.get(pinnedMessageId)?.text && (
-        <div className="pinned-rail">
-          <span className="pinned-icon">📌</span>
-          <span className="pinned-text">{messages.get(pinnedMessageId)!.text}</span>
-          <button
-            type="button"
-            className="pinned-x"
-            onClick={() => setPinnedMessageId(null)}
-            aria-label="Unpin"
-          >
-            ✕
-          </button>
-        </div>
-      )}
+      {(() => {
+        // Manual pin wins; otherwise auto-surface the decided winner.
+        const pinnedText = pinnedMessageId
+          ? messages.get(pinnedMessageId)?.text ?? null
+          : null;
+        const winnerText =
+          !pinnedText && state.status === "completed" && state.vote?.winner
+            ? `Winner: ${state.vote.winner.content.destinationName}`
+            : null;
+        const text = pinnedText ?? winnerText;
+        if (!text) return null;
+        return (
+          <div className="pinned-rail">
+            <span className="pinned-icon">{pinnedText ? "📌" : "🏆"}</span>
+            <span className="pinned-text">{text}</span>
+            {pinnedText && (
+              <button
+                type="button"
+                className="pinned-x"
+                onClick={() => setPinnedMessageId(null)}
+                aria-label="Unpin"
+              >
+                ✕
+              </button>
+            )}
+          </div>
+        );
+      })()}
 
       <div className="room-body">
         <section className="chat-panel">
@@ -803,10 +1031,12 @@ export function TripRoom({
               const mine = message.participantId === participantId;
               const tone = bot ? "bot" : mine ? "out" : "in";
               const pending = message.id.startsWith("pending:");
+              const hit = message.id === activeHitId;
               return (
                 <article
                   key={message.id}
-                  className={`msg msg-${tone}${pending ? " msg-pending" : ""}`}
+                  data-mid={message.id}
+                  className={`msg msg-${tone}${pending ? " msg-pending" : ""}${hit ? " msg-hit" : ""}`}
                   onTouchStart={(event) => onMsgTouchStart(event, message)}
                   onTouchMove={onMsgTouchMove}
                   onTouchEnd={(event) => onMsgTouchEnd(event, message)}
@@ -854,6 +1084,9 @@ export function TripRoom({
                         </div>
                       )}
                     </div>
+                    {!bot && !pending && message.heard && (
+                      <HeardChip heard={message.heard} />
+                    )}
                     <div className="react-add">
                       <button
                         type="button"
@@ -914,6 +1147,29 @@ export function TripRoom({
                 you want. Safar is listening.
               </p>
             )}
+            {state.summary &&
+              state.summary.memberPreferences.length > 0 &&
+              ["summary_review", "researching"].includes(state.status) && (
+                <SummaryCard summary={state.summary} />
+              )}
+            {state.summary && state.summary.conflicts.length > 0 && (
+              <ConflictCards
+                conflicts={state.summary.conflicts}
+                onAsk={(conflict) =>
+                  void postMessage(`Safar, how should we resolve: ${conflict}`)
+                }
+                onDiscuss={(conflict) => prefill(`About "${conflict}", I think `)}
+              />
+            )}
+            {!hasPlans && participantId && (
+              <AvailabilityPicker
+                slug={slug}
+                myId={participantId}
+                displayName={displayName}
+                availability={state.availability}
+                freeWindow={state.availabilityWindow}
+              />
+            )}
             {hasPlans && (
               <div className="poll-inline">
                 <div className="poll">
@@ -930,6 +1186,13 @@ export function TripRoom({
                           : ""}
                       </span>
                     )}
+                    {votingOpen &&
+                      state.vote &&
+                      state.vote.votesCast < state.vote.activeParticipants && (
+                        <button type="button" className="nudge-btn" onClick={nudge}>
+                          Nudge
+                        </button>
+                      )}
                   </div>
                   {state.plans.map((plan) => {
                     const votes = tallyFor(plan.optionNumber);
@@ -1516,5 +1779,225 @@ function PlanCard({
         </div>
       )}
     </article>
+  );
+}
+
+// What Safar extracted, per member — colour-coded so the group can see (and
+// correct) how it read each person. Makes the preference detection visible.
+function SummaryCard({ summary }: { summary: RoomSummary }) {
+  return (
+    <div className="summary-card">
+      <p className="summary-card-head">📋 What Safar heard</p>
+      <ul className="summary-members">
+        {summary.memberPreferences.map((member) => {
+          const colour = avatarColor(member.participantId);
+          const likes = member.interests.filter((i) => i.weight > 0);
+          const avoids = member.interests.filter((i) => i.weight < 0);
+          return (
+            <li key={member.participantId} className="summary-member">
+              <span className="summary-dot" style={{ background: colour }} />
+              <span className="summary-name">{member.displayName}</span>
+              <span className="summary-tags">
+                {likes.map((interest) => (
+                  <span
+                    key={interest.tag}
+                    className="ptag"
+                    style={{ borderColor: colour, color: colour }}
+                  >
+                    {interestLabel(interest.tag)}
+                  </span>
+                ))}
+                {avoids.map((interest) => (
+                  <span key={interest.tag} className="ptag avoid">
+                    ✕ {interestLabel(interest.tag)}
+                  </span>
+                ))}
+                {member.interests.length === 0 && (
+                  <span className="summary-none">no preferences yet</span>
+                )}
+              </span>
+            </li>
+          );
+        })}
+      </ul>
+      {summary.hardConstraints.length > 0 && (
+        <p className="summary-constraints">
+          Must-haves: {summary.hardConstraints.join(" · ")}
+        </p>
+      )}
+    </div>
+  );
+}
+
+// State-derived cards for each open conflict, with one-tap ways to resolve it.
+function ConflictCards({
+  conflicts,
+  onAsk,
+  onDiscuss,
+}: {
+  conflicts: string[];
+  onAsk: (conflict: string) => void;
+  onDiscuss: (conflict: string) => void;
+}) {
+  return (
+    <div className="conflict-cards">
+      {conflicts.map((conflict, index) => (
+        <div className="conflict-card" key={index}>
+          <p className="conflict-text">⚠ {conflict}</p>
+          <div className="conflict-actions">
+            <button type="button" className="primary" onClick={() => onAsk(conflict)}>
+              Ask Safar to resolve
+            </button>
+            <button type="button" onClick={() => onDiscuss(conflict)}>
+              Discuss
+            </button>
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+// Collapsible "Safar heard …" chip under a human message, showing the parsed
+// facts + interest tags so extraction is transparent per message.
+function HeardChip({ heard }: { heard: MessageHeard }) {
+  const facts = heard.facts
+    .map((fact) => heardFactLabel(fact.kind, fact.value))
+    .filter((label): label is string => Boolean(label));
+  const interests = heard.interests.map(interestLabel);
+  if (facts.length === 0 && interests.length === 0) return null;
+  return (
+    <details className="heard-chip">
+      <summary>Safar heard</summary>
+      <div className="heard-body">
+        {facts.map((fact, index) => (
+          <span key={`f${index}`} className="heard-pill">
+            {fact}
+          </span>
+        ))}
+        {interests.length > 0 && (
+          <span className="heard-pill">🏷 {interests.join(", ")}</span>
+        )}
+      </div>
+    </details>
+  );
+}
+
+// A compact month calendar: the current user marks the days they can't travel,
+// saved on each tap; shows other members' blocked days and the common window.
+function AvailabilityPicker({
+  slug,
+  myId,
+  displayName,
+  availability,
+  freeWindow,
+}: {
+  slug: string;
+  myId: string;
+  displayName: string;
+  availability: MemberAvailability[];
+  freeWindow: FreeWindow | null;
+}) {
+  const todayISO = new Date().toISOString().slice(0, 10);
+  const [mine, setMine] = useState<string[]>(
+    () => availability.find((a) => a.participantId === myId)?.unavailableDates ?? [],
+  );
+  const [view, setView] = useState(() => {
+    const now = new Date();
+    return { y: now.getFullYear(), m: now.getMonth() };
+  });
+  const [saving, setSaving] = useState(false);
+
+  const othersBlocked = useMemo(() => {
+    const map = new Map<string, number>();
+    for (const member of availability) {
+      if (member.participantId === myId) continue;
+      for (const date of member.unavailableDates) {
+        map.set(date, (map.get(date) ?? 0) + 1);
+      }
+    }
+    return map;
+  }, [availability, myId]);
+
+  const toggle = (iso: string) => {
+    if (iso < todayISO) return;
+    haptic(8);
+    setMine((prev) => {
+      const next = prev.includes(iso)
+        ? prev.filter((d) => d !== iso)
+        : [...prev, iso];
+      setSaving(true);
+      void fetch(`/api/trip/${slug}/availability`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ participantId: myId, displayName, unavailableDates: next }),
+      }).finally(() => setSaving(false));
+      return next;
+    });
+  };
+
+  const first = new Date(view.y, view.m, 1);
+  const daysInMonth = new Date(view.y, view.m + 1, 0).getDate();
+  const cells: (number | null)[] = [
+    ...Array.from({ length: first.getDay() }, () => null),
+    ...Array.from({ length: daysInMonth }, (_, i) => i + 1),
+  ];
+  const isoOf = (day: number) =>
+    `${view.y}-${String(view.m + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+  const step = (delta: number) =>
+    setView((s) => {
+      const m = s.m + delta;
+      if (m < 0) return { y: s.y - 1, m: 11 };
+      if (m > 11) return { y: s.y + 1, m: 0 };
+      return { y: s.y, m };
+    });
+
+  return (
+    <div className="avail">
+      <div className="avail-head">
+        <button type="button" onClick={() => step(-1)} aria-label="Previous month">
+          ‹
+        </button>
+        <strong>{first.toLocaleDateString("en-IN", { month: "long", year: "numeric" })}</strong>
+        <button type="button" onClick={() => step(1)} aria-label="Next month">
+          ›
+        </button>
+      </div>
+      <p className="avail-hint">
+        Tap the days you <em>can’t</em> travel{saving ? " · saving…" : ""}
+      </p>
+      <div className="avail-grid">
+        {["S", "M", "T", "W", "T", "F", "S"].map((d, i) => (
+          <span key={`dow${i}`} className="avail-dow">
+            {d}
+          </span>
+        ))}
+        {cells.map((day, index) => {
+          if (day === null) return <span key={`e${index}`} />;
+          const iso = isoOf(day);
+          const past = iso < todayISO;
+          const picked = mine.includes(iso);
+          const others = othersBlocked.get(iso) ?? 0;
+          return (
+            <button
+              type="button"
+              key={iso}
+              disabled={past}
+              className={`avail-day${picked ? " mine" : ""}${others > 0 ? " others" : ""}${past ? " past" : ""}`}
+              onClick={() => toggle(iso)}
+              title={others > 0 ? `${others} other(s) unavailable` : undefined}
+            >
+              {day}
+              {others > 0 && <span className="avail-mark" />}
+            </button>
+          );
+        })}
+      </div>
+      {freeWindow ? (
+        <p className="avail-window good">✅ Everyone free: {fmtRange(freeWindow.start, freeWindow.end)}</p>
+      ) : (
+        <p className="avail-window">Mark your dates to find a window everyone can make.</p>
+      )}
+    </div>
   );
 }
