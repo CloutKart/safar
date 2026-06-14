@@ -7,6 +7,8 @@ import type {
   TripSummary,
 } from "@/lib/domain";
 import type {
+  MemberAvailability,
+  MessageHeard,
   QueuedWebhook,
   ReactionSummary,
   SafarStore,
@@ -376,6 +378,104 @@ export class SupabaseSafarStore implements SafarStore {
       weight: Number(row.weight),
       confidence: Number(row.confidence),
     }));
+  }
+
+  async getHeard(groupId: string): Promise<Map<string, MessageHeard>> {
+    const [facts, prefs, messages] = await Promise.all([
+      this.db
+        .from("trip_facts")
+        .select("evidence_message_id,kind,value")
+        .eq("group_id", groupId)
+        .is("superseded_at", null),
+      this.db
+        .from("preference_evidence")
+        .select("evidence_message_id,tag")
+        .eq("group_id", groupId)
+        .eq("direct_first_person", true),
+      this.db.from("messages").select("id,wa_message_id").eq("group_id", groupId),
+    ]);
+    if (facts.error) throw facts.error;
+    if (prefs.error) throw prefs.error;
+    if (messages.error) throw messages.error;
+    // evidence rows carry the internal message id; the thread is keyed by wa id.
+    const idToWa = new Map(
+      (messages.data ?? []).map((row) => [String(row.id), String(row.wa_message_id)]),
+    );
+    const result = new Map<string, MessageHeard>();
+    const ensure = (wa: string) => {
+      const entry = result.get(wa) ?? { facts: [], interests: [] };
+      result.set(wa, entry);
+      return entry;
+    };
+    for (const row of facts.data ?? []) {
+      if (!row.evidence_message_id) continue;
+      const wa = idToWa.get(String(row.evidence_message_id));
+      if (!wa) continue;
+      ensure(wa).facts.push({
+        kind: String(row.kind),
+        value: row.value as string | number | string[],
+      });
+    }
+    for (const row of prefs.data ?? []) {
+      if (!row.evidence_message_id) continue;
+      const wa = idToWa.get(String(row.evidence_message_id));
+      if (!wa) continue;
+      const entry = ensure(wa);
+      const tag = String(row.tag);
+      if (!entry.interests.includes(tag)) entry.interests.push(tag);
+    }
+    return result;
+  }
+
+  async setAvailability(input: {
+    groupId: string;
+    participantId: string;
+    unavailableDates: string[];
+  }): Promise<void> {
+    const { error } = await this.db.from("group_availability").upsert(
+      {
+        group_id: input.groupId,
+        participant_id: input.participantId,
+        unavailable_dates: input.unavailableDates,
+        updated_at: new Date().toISOString(),
+      },
+      { onConflict: "group_id,participant_id" },
+    );
+    if (error) throw error;
+  }
+
+  async getAvailability(groupId: string): Promise<MemberAvailability[]> {
+    const [avail, participants] = await Promise.all([
+      this.db
+        .from("group_availability")
+        .select("participant_id,unavailable_dates")
+        .eq("group_id", groupId),
+      this.db
+        .from("participants")
+        .select("id,wa_id,display_name")
+        .eq("group_id", groupId),
+    ]);
+    if (avail.error) throw avail.error;
+    if (participants.error) throw participants.error;
+    const byId = new Map(
+      (participants.data ?? []).map((row) => [
+        String(row.id),
+        {
+          waId: String(row.wa_id),
+          displayName: row.display_name ? String(row.display_name) : null,
+        },
+      ]),
+    );
+    return (avail.data ?? []).map((row) => {
+      const participant = byId.get(String(row.participant_id));
+      return {
+        participantId: participant?.waId ?? String(row.participant_id),
+        displayName: participant?.displayName ?? null,
+        unavailableDates: Array.isArray(row.unavailable_dates)
+          ? row.unavailable_dates.map(String)
+          : [],
+      };
+    });
   }
 
   async getRecentMessages(

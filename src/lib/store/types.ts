@@ -104,6 +104,25 @@ export interface ThreadMessage {
   text: string | null;
   occurredAt: string;
   reactions: ReactionSummary[];
+  // What Safar parsed from this message (facts + interest tags), surfaced as a
+  // "Safar heard …" chip. Reconstructed from the extraction evidence keyed to
+  // this message; absent on bot messages and any without parsed signals.
+  heard?: MessageHeard;
+}
+
+// Per-message extraction surfaced in the UI: the trip facts (origin, budget,
+// dates …) and interest tags Safar attributed to a single human message.
+export interface MessageHeard {
+  facts: Array<{ kind: string; value: string | number | string[] }>;
+  interests: string[];
+}
+
+// One member's unavailable dates (ISO yyyy-mm-dd). `participantId` is the waId
+// (browser pid) so it lines up with the thread/avatars on the client.
+export interface MemberAvailability {
+  participantId: string;
+  displayName: string | null;
+  unavailableDates: string[];
 }
 
 export interface QueuedWebhook {
@@ -169,8 +188,19 @@ export interface SafarStore {
   }): Promise<void>;
   getFacts(groupId: string): Promise<StoredFact[]>;
   getPreferences(groupId: string): Promise<StoredPreference[]>;
+  // Per-message extraction signals, keyed by the public wa_message_id, for the
+  // "Safar heard" chip. Reconstructed from the fact/preference evidence rows.
+  getHeard(groupId: string): Promise<Map<string, MessageHeard>>;
   getRecentMessages(groupId: string, limit?: number): Promise<StoredMessage[]>;
   getThread(groupId: string, limit?: number): Promise<ThreadMessage[]>;
+  // Each member's unavailable dates, for the availability picker + the group's
+  // common-free-window computation.
+  setAvailability(input: {
+    groupId: string;
+    participantId: string;
+    unavailableDates: string[];
+  }): Promise<void>;
+  getAvailability(groupId: string): Promise<MemberAvailability[]>;
   toggleReaction(input: {
     groupId: string;
     messageId: string;
