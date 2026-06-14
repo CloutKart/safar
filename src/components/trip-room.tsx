@@ -26,6 +26,7 @@ import type { FreeWindow } from "@/lib/trip/availability";
 import { vibesLabel } from "@/lib/trip/vibe";
 import { VibeStage } from "@/components/vibe-scene";
 import { JourneyMapHeader } from "@/components/journey-map";
+import { TripExports } from "@/components/trip-exports";
 import { lookupCoords } from "@/lib/cityCoords";
 import { fetchWeather, type WeatherSummary } from "@/lib/weather";
 
@@ -1220,6 +1221,16 @@ export function TripRoom({
                   })}
                 </div>
               </div>
+            )}
+            {state.status === "completed" && state.vote?.winner && (
+              <TripExports
+                plan={state.vote.winner.content}
+                tripDates={state.tripDates}
+                groupSize={Math.max(1, participants.length)}
+                roomUrl={typeof window !== "undefined" ? window.location.href : ""}
+                vibes={state.vibes}
+                onShareToRoom={(textToPost) => void postMessage(textToPost)}
+              />
             )}
             {hasPlans && (
               <div className="plans-feed">
