@@ -348,7 +348,7 @@ a { color: inherit; }
 .plans-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
 .cmp-toggle { flex: none; padding: 6px 12px; border-radius: 99px; border: 1px solid var(--r-line-strong); background: var(--r-surface-2); color: var(--r-ink); font-weight: 700; font-size: 12px; cursor: pointer; }
 .cmp-toggle:hover { background: rgba(255,255,255,.06); }
-.plan-compare { overflow-x: auto; }
+.plan-compare { min-width: 0; max-width: 100%; overflow-x: auto; }
 .cmp-grid { display: grid; gap: 1px; background: var(--r-line); border: 1px solid var(--r-line); border-radius: 12px; overflow: hidden; min-width: 280px; }
 .cmp-corner { background: var(--r-surface-2); }
 .cmp-head { display: flex; align-items: center; gap: 6px; padding: 9px 8px; background: var(--r-surface-2); color: var(--r-ink); font-weight: 700; font-size: 12px; }
@@ -435,8 +435,8 @@ a { color: inherit; }
 /* Journey map — a Safar bubble with an animated route from departure to the
    winning destination, posted inline when the trip is decided. */
 .journey-msg { max-width: 100%; align-self: stretch; }
-.journey-msg .msg-main { width: 100%; }
-.journey-map { width: 100%; max-width: 600px; padding: 6px; }
+.journey-msg .msg-main { flex: 1; min-width: 0; }
+.journey-map { width: 100%; max-width: min(600px, 100%); padding: 6px; }
 .journey-leaflet { width: 100%; height: 240px; border-radius: 12px; overflow: hidden; background: var(--r-surface); }
 .journey-fallback { display: grid; place-items: center; color: var(--r-muted); font-size: 13px; }
 .journey-leaflet .leaflet-container { background: #0e1714; font: inherit; }
@@ -553,6 +553,7 @@ a { color: inherit; }
   .room-body {
     flex: 1;
     min-height: 0;
+    min-width: 0;
     margin-top: 0;
     gap: 0;
     display: flex;
@@ -561,12 +562,16 @@ a { color: inherit; }
   .chat-panel {
     flex: 1;
     min-height: 0;
+    min-width: 0;
     height: auto;
     border: none;
     border-radius: 0;
     background: transparent;
   }
-  .chat-log { flex: 1; height: auto; min-height: 0; padding: 14px 12px 8px; gap: 13px; }
+  /* min-width:0 lets children shrink; overflow-x:hidden stops any wide child
+     (carousel, map) from giving the whole page a horizontal scroll. */
+  .chat-log { flex: 1; height: auto; min-height: 0; min-width: 0; overflow-x: hidden; padding: 14px 12px 8px; gap: 13px; }
+  .plans-feed, .plan-carousel, .plan-card { min-width: 0; max-width: 100%; }
 
   /* Side panel + compact poll give way to full plan cards in the thread. */
   .plans-panel { display: none; }
