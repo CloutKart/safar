@@ -24,17 +24,21 @@ export default function JourneyMapInner({
   from,
   to,
   destinationName,
+  fill = false,
 }: {
   from: LatLng | null;
   to: LatLng;
   destinationName: string;
+  fill?: boolean;
 }) {
   const ref = useRef<HTMLDivElement>(null);
-  const hasAnimated = useRef(false);
 
+  // Create the map on mount; tear it down on unmount. Deps are stable (coords
+  // resolve once in the parent), so this runs once per real mount and the route
+  // animates a single time — but a Strict-Mode/remount cleanup correctly rebuilds
+  // it rather than leaving a dead container.
   useEffect(() => {
-    if (!ref.current || hasAnimated.current) return;
-    hasAnimated.current = true;
+    if (!ref.current) return;
 
     const map = L.map(ref.current, {
       zoomControl: false,
@@ -117,5 +121,11 @@ export default function JourneyMapInner({
     };
   }, [from, to, destinationName]);
 
-  return <div className="journey-leaflet" ref={ref} aria-hidden="true" />;
+  return (
+    <div
+      className={`journey-leaflet${fill ? " journey-leaflet--fill" : ""}`}
+      ref={ref}
+      aria-hidden="true"
+    />
+  );
 }
