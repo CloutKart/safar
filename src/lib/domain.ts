@@ -155,6 +155,9 @@ export const GeneratedPlanSchema = z.object({
   title: z.string(),
   destinationSlug: z.string(),
   destinationName: z.string(),
+  // State/region the destination sits in ("Himachal Pradesh"); "" for ad-hoc
+  // cities and already-stored plans generated before this field existed.
+  destinationState: z.string().default(""),
   angle: z.enum(["balanced", "adventurous", "relaxed"]),
   // 0-100 weighted match score + a one-line reason it was recommended.
   matchScore: z.number().int().min(0).max(100).default(0),

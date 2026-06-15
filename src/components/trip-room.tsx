@@ -196,11 +196,6 @@ const IconPlus = (
     <path d="M12 5v14M5 12h14" />
   </svg>
 );
-const IconPoll = (
-  <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
-    <path d="M5 20V11M12 20V4M19 20v-6" />
-  </svg>
-);
 const IconSearch = (
   <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
     <circle cx="11" cy="11" r="7" />
@@ -299,7 +294,6 @@ export function TripRoom({
   const [paletteFor, setPaletteFor] = useState<string | null>(null);
   const [emojiOpen, setEmojiOpen] = useState(false);
   const [copied, setCopied] = useState(false);
-  const [myVote, setMyVote] = useState<number | null>(null);
   const [lightbox, setLightbox] = useState<{ url: string; alt: string } | null>(null);
   const [slashIndex, setSlashIndex] = useState(0);
   const [compareOpen, setCompareOpen] = useState(false);
@@ -311,6 +305,9 @@ export function TripRoom({
   const [searchOpen, setSearchOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
   const [searchPos, setSearchPos] = useState(0);
+  // Which heavy panel is expanded above the composer (plans/dates/export) — all
+  // collapsed by default so the chat log stays the focus, not buried under them.
+  const [openPanel, setOpenPanel] = useState<"plans" | "dates" | "export" | null>(null);
   const chatRef = useRef<HTMLDivElement>(null);
   const carouselRef = useRef<HTMLDivElement>(null);
   const touchRef = useRef<{
@@ -449,7 +446,7 @@ export function TripRoom({
 
   useEffect(() => {
     chatRef.current?.scrollTo({ top: chatRef.current.scrollHeight });
-  }, [sorted.length, state.plans.length]);
+  }, [sorted.length]);
 
   // Photo lightbox: close on Escape, and lock background scroll while open.
   useEffect(() => {
@@ -734,7 +731,6 @@ export function TripRoom({
   function castVote(option: number) {
     if (!votable(option)) return;
     haptic([0, 14]); // vote cast
-    setMyVote(option);
     void postMessage(`vote ${option}`);
   }
 
@@ -753,7 +749,7 @@ export function TripRoom({
         state.vote?.winner?.optionNumber === plan.optionNumber
       }
       tripDates={state.tripDates}
-      onVote={() => postMessage(`vote ${plan.optionNumber}`)}
+      onVote={() => castVote(plan.optionNumber)}
       onOpenPhoto={(url, alt) => setLightbox({ url, alt })}
     />
   );
@@ -1166,118 +1162,40 @@ export function TripRoom({
                 onDiscuss={(conflict) => prefill(`About "${conflict}", I think `)}
               />
             )}
-            {!hasPlans && participantId && (
-              <AvailabilityPicker
-                slug={slug}
-                myId={participantId}
-                displayName={displayName}
-                availability={state.availability}
-                freeWindow={state.availabilityWindow}
-              />
-            )}
-            {hasPlans && (
-              <div className="poll-inline">
-                <div className="poll">
-                  <div className="poll-head">
-                    {IconPoll}
-                    <strong>
-                      {state.status === "completed" ? "Final result" : "Tap to vote"}
-                    </strong>
-                    {state.vote && (
-                      <span className="poll-meta">
-                        {state.vote.votesCast}/{state.vote.activeParticipants} voted
-                        {state.status === "voting" && state.runoffOptions.length > 0
-                          ? ` · runoff ${state.runoffOptions.join(" & ")}`
-                          : ""}
-                      </span>
-                    )}
-                    {votingOpen &&
-                      state.vote &&
-                      state.vote.votesCast < state.vote.activeParticipants && (
-                        <button type="button" className="nudge-btn" onClick={nudge}>
-                          Nudge
-                        </button>
-                      )}
-                  </div>
-                  {state.plans.map((plan) => {
-                    const votes = tallyFor(plan.optionNumber);
-                    const active = state.vote?.activeParticipants ?? 0;
-                    const share = active > 0 ? Math.round((votes / active) * 100) : 0;
-                    const mine = myVote === plan.optionNumber;
-                    const won =
-                      state.status === "completed" &&
-                      state.vote?.winner?.optionNumber === plan.optionNumber;
-                    return (
-                      <button
-                        type="button"
-                        key={plan.optionNumber}
-                        className={`poll-option${mine ? " mine" : ""}${won ? " won" : ""}`}
-                        disabled={!votable(plan.optionNumber) && state.status !== "completed"}
-                        onClick={() => castVote(plan.optionNumber)}
-                      >
-                        <span className="poll-bar" style={{ width: `${share}%` }} />
-                        <span className="poll-num">{plan.optionNumber}</span>
-                        <span className="poll-title">{plan.title}</span>
-                        {(mine || won) && <span className="poll-check">✓</span>}
-                        <span className="poll-count">{votes}</span>
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-            )}
-            {state.status === "completed" && state.vote?.winner && (
-              <TripExports
-                plan={state.vote.winner.content}
-                tripDates={state.tripDates}
-                groupSize={Math.max(1, participants.length)}
-                roomUrl={typeof window !== "undefined" ? window.location.href : ""}
-                vibes={state.vibes}
-                onShareToRoom={(textToPost) => void postMessage(textToPost)}
-              />
-            )}
-            {hasPlans && (
-              <div className="plans-feed">
-                {state.plans.length > 1 && (
-                  <button
-                    type="button"
-                    className="cmp-toggle"
-                    onClick={() => setCompareOpen((open) => !open)}
-                  >
-                    {compareOpen ? "← Back to cards" : "Compare side-by-side"}
-                  </button>
-                )}
-                {compareOpen ? (
-                  <PlanCompare plans={state.plans} />
-                ) : (
-                  <>
-                    <div
-                      className="plan-carousel"
-                      ref={carouselRef}
-                      onScroll={onCarouselScroll}
-                    >
-                      {state.plans.map(renderPlan)}
-                    </div>
-                    {state.plans.length > 1 && (
-                      <div className="carousel-dots" aria-hidden="true">
-                        {state.plans.map((plan, index) => (
-                          <span
-                            key={plan.optionNumber}
-                            className={`carousel-dot${index === activeCard ? " active" : ""}`}
-                          />
-                        ))}
-                      </div>
-                    )}
-                  </>
-                )}
-              </div>
-            )}
           </div>
 
           <div className="quick-actions">
             {["forming", "listening", "summary_review"].includes(state.status) && (
               <button type="button" onClick={() => postMessage("Safar, summarize the trip")}>
                 Summarize the trip
+              </button>
+            )}
+            {/* Collapse the heavy panels behind toggle chips so the chat stays the focus. */}
+            {!hasPlans && participantId && (
+              <button
+                type="button"
+                className={`panel-chip${openPanel === "dates" ? " active" : ""}`}
+                onClick={() => setOpenPanel((p) => (p === "dates" ? null : "dates"))}
+              >
+                📅 Dates
+              </button>
+            )}
+            {hasPlans && (
+              <button
+                type="button"
+                className={`panel-chip panel-chip--mobile${openPanel === "plans" ? " active" : ""}`}
+                onClick={() => setOpenPanel((p) => (p === "plans" ? null : "plans"))}
+              >
+                🗳 Plans &amp; vote ({state.plans.length})
+              </button>
+            )}
+            {state.status === "completed" && state.vote?.winner && (
+              <button
+                type="button"
+                className={`panel-chip${openPanel === "export" ? " active" : ""}`}
+                onClick={() => setOpenPanel((p) => (p === "export" ? null : "export"))}
+              >
+                📤 Export
               </button>
             )}
             {actionChips.map((chip) => (
@@ -1291,6 +1209,101 @@ export function TripRoom({
               </button>
             ))}
           </div>
+
+          {openPanel && (
+            <section className="room-panel" data-panel={openPanel}>
+              <div className="room-panel-head">
+                <strong>
+                  {openPanel === "dates"
+                    ? "Mark your unavailable dates"
+                    : openPanel === "plans"
+                      ? "Recommendations & voting"
+                      : "Take the trip with you"}
+                </strong>
+                <button
+                  type="button"
+                  className="room-panel-x"
+                  onClick={() => setOpenPanel(null)}
+                  aria-label="Close panel"
+                >
+                  ✕
+                </button>
+              </div>
+              <div className="room-panel-body">
+                {openPanel === "dates" && participantId && (
+                  <AvailabilityPicker
+                    slug={slug}
+                    myId={participantId}
+                    displayName={displayName}
+                    availability={state.availability}
+                    freeWindow={state.availabilityWindow}
+                  />
+                )}
+                {openPanel === "plans" && hasPlans && (
+                  <div className="plans-feed">
+                    {state.vote && (
+                      <p className="vote-status">
+                        {state.vote.votesCast}/{state.vote.activeParticipants} voted
+                        {state.status === "voting" && state.runoffOptions.length > 0
+                          ? ` · runoff ${state.runoffOptions.join(" & ")}`
+                          : ""}
+                        {votingOpen &&
+                          state.vote.votesCast < state.vote.activeParticipants && (
+                            <button type="button" className="nudge-btn" onClick={nudge}>
+                              Nudge
+                            </button>
+                          )}
+                      </p>
+                    )}
+                    {state.plans.length > 1 && (
+                      <button
+                        type="button"
+                        className="cmp-toggle"
+                        onClick={() => setCompareOpen((open) => !open)}
+                      >
+                        {compareOpen ? "← Back to cards" : "Compare side-by-side"}
+                      </button>
+                    )}
+                    {compareOpen ? (
+                      <PlanCompare plans={state.plans} />
+                    ) : (
+                      <>
+                        <div
+                          className="plan-carousel"
+                          ref={carouselRef}
+                          onScroll={onCarouselScroll}
+                        >
+                          {state.plans.map(renderPlan)}
+                        </div>
+                        {state.plans.length > 1 && (
+                          <div className="carousel-dots" aria-hidden="true">
+                            {state.plans.map((plan, index) => (
+                              <span
+                                key={plan.optionNumber}
+                                className={`carousel-dot${index === activeCard ? " active" : ""}`}
+                              />
+                            ))}
+                          </div>
+                        )}
+                      </>
+                    )}
+                  </div>
+                )}
+                {openPanel === "export" &&
+                  state.status === "completed" &&
+                  state.vote?.winner && (
+                    <TripExports
+                      plan={state.vote.winner.content}
+                      tripDates={state.tripDates}
+                      groupSize={Math.max(1, participants.length)}
+                      roomUrl={typeof window !== "undefined" ? window.location.href : ""}
+                      vibes={state.vibes}
+                      onShareToRoom={(textToPost) => void postMessage(textToPost)}
+                    />
+                  )}
+              </div>
+            </section>
+          )}
 
           {replyTo && (
             <div className="reply-preview">
@@ -1530,6 +1543,9 @@ function PlanCompare({ plans }: { plans: GeneratedPlan[] }) {
           <div className="cmp-head" key={plan.optionNumber}>
             <span className="cmp-num">{plan.optionNumber}</span>
             {plan.destinationName}
+            {plan.destinationState ? (
+              <span className="cmp-state">{plan.destinationState}</span>
+            ) : null}
           </div>
         ))}
         {rows.map((row) => {
@@ -1661,7 +1677,8 @@ function PlanCard({
         <div>
           <h3>{plan.title}</h3>
           <p>
-            {plan.destinationName} · {plan.angle}
+            {plan.destinationName}
+            {plan.destinationState ? `, ${plan.destinationState}` : ""} · {plan.angle}
           </p>
           <span className="plan-cost-line">
             {inr(plan.cost.lowInr)}–{inr(plan.cost.highInr)}
