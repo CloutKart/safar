@@ -38,7 +38,11 @@ export function parseCommand(text: string): ConversationCommand {
   ) {
     return { type: "summary" };
   }
-  if (/^(approve|approved|looks good|sahi hai|theek hai|final)\b/i.test(cleaned)) {
+  if (
+    /^(approve|approved|looks good|lgtm|sahi hai|theek hai|pakka|done|chalega|chalta hai|haan bhai|haan ji|bilkul|final)\b/i.test(
+      cleaned,
+    )
+  ) {
     return { type: "approve" };
   }
   if (/^(reject|not approved|galat hai|wrong summary)\b/i.test(cleaned)) {

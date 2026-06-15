@@ -62,4 +62,20 @@ describe("buildPreferenceFocus", () => {
     expect(nightlife?.places).toHaveLength(0);
     expect(nightlife?.means).toMatch(/bar|rooftop|live music/i);
   });
+
+  it("buckets a mall under shopping, not under quirky-based interests", () => {
+    const mall = gem({ name: "Phoenix Marketcity", type: "shopping", score: 50 });
+    const shoppingFocus = buildPreferenceFocus(
+      new Map<InterestTag, number>([
+        ["shopping", 2],
+        ["haunted", 1],
+      ]),
+      [...gems, mall],
+    );
+    const places = (tag: InterestTag) =>
+      shoppingFocus.find((f) => f.interest === tag)?.places.map((p) => p.name) ?? [];
+    expect(places("shopping")).toContain("Phoenix Marketcity");
+    // a mall must NOT leak into the haunted bucket (which accepts "quirky" type)
+    expect(places("haunted")).not.toContain("Phoenix Marketcity");
+  });
 });

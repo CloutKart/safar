@@ -18,6 +18,7 @@ export const interestTags = [
   "caves",
   "camping",
   "rafting",
+  "shopping",
 ] as const;
 
 export const InterestTagSchema = z.enum(interestTags);

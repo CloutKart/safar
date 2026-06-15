@@ -13,7 +13,8 @@ export type GemType =
   | "food"
   | "history"
   | "quirky"
-  | "experience";
+  | "experience"
+  | "shopping";
 export type GemSource = "places" | "atlas" | "reddit" | "wikivoyage";
 
 export interface Gem {
@@ -50,6 +51,7 @@ function normalizeType(value: string): GemType {
   if (/view|lookout|sunset|sunrise|vista|point/.test(text)) return "viewpoint";
   if (/nature|park|beach|trek|hike|lake|forest|waterfall|garden|wildlife/.test(text)) return "nature";
   if (/experience|activity|tour|workshop|class/.test(text)) return "experience";
+  if (/mall|shopping|emporium|retail/.test(text)) return "shopping";
   return "quirky";
 }
 
@@ -146,6 +148,54 @@ async function fromPlaces(city: string): Promise<Gem[]> {
       byKey.set(key, {
         name,
         type,
+        blurb: (place.editorialSummary as { text?: string } | undefined)?.text ?? "",
+        area: (place.formattedAddress as string | undefined) ?? null,
+        sources: ["places"],
+        score: 0,
+        rating,
+        reviewCount: reviews,
+        mapsUrl: (place.googleMapsUri as string | undefined) ?? null,
+        lat: location?.latitude ?? null,
+        lng: location?.longitude ?? null,
+        photoRef:
+          (place.photos as Array<{ name?: string }> | undefined)?.[0]?.name ?? null,
+      });
+    }
+  }
+  return [...byKey.values()];
+}
+
+// Malls + shopping districts are normally denied (vendors). They're fetched
+// ONLY when a group actually wants shopping (see planner.ts), so they never
+// cheapen a trek/heritage plan.
+const SHOPPING_TYPES = new Set([
+  "shopping_mall", "department_store", "market", "plaza", "shopping_center",
+]);
+
+export async function mallsFor(city: string): Promise<Gem[]> {
+  if (!env.GOOGLE_PLACES_KEY) return [];
+  const byKey = new Map<string, Gem>();
+  for (const query of [
+    `popular shopping malls in ${city}`,
+    `best shopping markets and bazaars in ${city}`,
+  ]) {
+    const places = await placesSearch(query).catch(() => []);
+    for (const place of places) {
+      const name = (place.displayName as { text?: string } | undefined)?.text;
+      if (!name) continue;
+      const types = (place.types as string[] | undefined) ?? [];
+      if (!types.some((t) => SHOPPING_TYPES.has(t))) continue; // real retail spots only
+      const rating = typeof place.rating === "number" ? place.rating : null;
+      if (rating != null && rating < 4.0) continue;
+      const reviews =
+        typeof place.userRatingCount === "number" ? place.userRatingCount : null;
+      if (reviews != null && reviews < 50) continue;
+      const key = gemKey(name);
+      if (byKey.has(key)) continue;
+      const location = place.location as { latitude?: number; longitude?: number } | undefined;
+      byKey.set(key, {
+        name,
+        type: "shopping",
         blurb: (place.editorialSummary as { text?: string } | undefined)?.text ?? "",
         area: (place.formattedAddress as string | undefined) ?? null,
         sources: ["places"],

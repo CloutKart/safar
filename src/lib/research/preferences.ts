@@ -105,6 +105,12 @@ export const TAG_EXPERIENCES: Record<InterestTag, TagExperience> = {
     gemTypes: ["experience"],
     match: /raft|kayak|rapids|canoe|river|white.?water/i,
   },
+  shopping: {
+    means:
+      "named shopping malls, retail districts and lively bazaars worth a browse",
+    gemTypes: ["shopping"],
+    match: /mall|shopping|bazaar|market|emporium|retail|plaza/i,
+  },
 };
 
 export interface PreferenceFocus {
