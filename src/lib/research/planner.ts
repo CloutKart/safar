@@ -11,7 +11,7 @@ import {
 import { generateStructured } from "@/lib/ai/client";
 import { researchDestination } from "@/lib/research/search";
 import { getPriceQuotes, type SupplierQuote } from "@/lib/research/pricing";
-import { getGems, gemKey, isHiddenGem, type Gem } from "@/lib/research/gems";
+import { getGems, gemKey, isHiddenGem, mallsFor, type Gem } from "@/lib/research/gems";
 import {
   buildPreferenceFocus,
   preferredGemNames,
@@ -304,21 +304,30 @@ function injectGems(
     const gem = fresh[cursor];
     cursor += 1;
     const isFood = gem.type === "food";
+    const isShopping = gem.type === "shopping";
+    // Malls/markets read as a planned "sight", not an offbeat 💎 hidden gem.
+    const kind = isFood ? "food" : isShopping ? "sight" : "hidden-gem";
     return {
       ...day,
       stops: [
         ...day.stops,
         {
           name: gem.name,
-          kind: isFood ? ("food" as const) : ("hidden-gem" as const),
+          kind: kind as ItineraryStop["kind"],
           note:
             gem.blurb ||
             (isFood
               ? "well-rated local eatery"
-              : gem.sources.includes("places")
-                ? "well-rated, low-key local spot"
-                : "offbeat local find"),
-          approxInr: isFood ? stopCostInr("food", destination) : null,
+              : isShopping
+                ? "malls, markets and shopping"
+                : gem.sources.includes("places")
+                  ? "well-rated, low-key local spot"
+                  : "offbeat local find"),
+          approxInr: isFood
+            ? stopCostInr("food", destination)
+            : isShopping
+              ? stopCostInr("sight", destination)
+              : null,
         },
       ],
     };
@@ -521,11 +530,17 @@ export async function generatePlans(
       const days =
         summary.dates.durationDays ??
         Math.min(destination.maxDays, Math.max(destination.minDays, 3));
-      const [searchResults, quotes, gems] = await Promise.all([
+      const [searchResults, quotes, baseGems] = await Promise.all([
         researchDestination(destination, summary),
         getPriceQuotes(destination, summary),
         getGems(destination.name).catch(() => [] as Gem[]),
       ]);
+      // Malls/shopping spots are pulled in ONLY when the group wants shopping,
+      // so they never cheapen a trek/heritage plan.
+      const gems =
+        (weights.get("shopping") ?? 0) > 0
+          ? [...baseGems, ...(await mallsFor(destination.name).catch(() => []))]
+          : baseGems;
       const research = searchResults.slice(0, 5).map((result) => ({
         title: result.title,
         publisher: result.publisher,

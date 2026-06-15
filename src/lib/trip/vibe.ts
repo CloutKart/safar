@@ -84,6 +84,7 @@ const TAG_VIBE: Record<string, Vibe> = {
   beaches: "beach",
   mountains: "mountains",
   "road-trip": "default",
+  shopping: "bazaar",
 };
 
 // Destination-name keyword → vibe. Scoring (not first-match) resolves overlaps,

@@ -43,12 +43,13 @@ const interestAliases: Record<InterestTag, string[]> = {
   ],
   food: [
     "food", "foods", "street food", "seafood", "food crawl", "food walk", "food trail",
-    "local food", "local cuisine", "khana", "foodie", "dhaba", "thali", "eateries",
-    "delicacies",
+    "local food", "local cuisine", "khana", "khaana", "khau", "chatori", "foodie",
+    "dhaba", "thali", "eateries", "delicacies",
   ],
   nightlife: [
     "nightlife", "party", "parties", "partying", "club", "clubs", "clubbing",
     "bars", "pub", "pubs", "rooftop", "lounge", "live music", "dj", "after dark",
+    "daru", "theka", "sharab",
   ],
   relaxation: [
     "relax", "relaxed", "relaxing", "relaxation", "slow travel", "slow trip", "slow pace",
@@ -93,6 +94,10 @@ const interestAliases: Record<InterestTag, string[]> = {
     "rafting", "river rafting", "white water rafting", "whitewater", "kayak", "kayaking",
     "canoeing",
   ],
+  shopping: [
+    "shopping", "mall", "malls", "mall hopping", "retail", "retail therapy",
+    "shopping spree", "shopaholic", "street shopping", "shopping street", "flea market",
+  ],
 };
 
 const escapeRe = (value: string) => value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
@@ -115,9 +120,9 @@ const firstPersonPattern =
 // Expressed-preference verbs/markers — people rarely say "I" in casual chat
 // ("love beaches", "want cafes", "into trekking", "beach chahiye").
 const preferenceMarker =
-  /\b(love|loved|loves|loving|want|wanna|wanted|wish|prefer|prefers|like|likes|liking|enjoy|enjoys|fan of|into|keen|interested|looking for|hoping for|down for|up for|in the mood|mood for|excited for|chahiye|chahta|chahte|chah|pasand|mann|sochna)\b/i;
+  /\b(love|loved|loves|loving|want|wanna|wanted|wish|prefer|prefers|like|likes|liking|enjoy|enjoys|fan of|into|keen|interested|looking for|hoping for|down for|up for|in the mood|mood for|excited for|chahiye|chahta|chahte|chah|pasand|mann|sochna|scene|vibe|mood|chull)\b/i;
 const negativePattern =
-  /\b(no|not|don't|dont|hate|hates|avoid|skip|nope|nahi|nahin|mat|pasand nahi|bilkul nahi)\b/i;
+  /\b(no|not|don't|dont|hate|hates|avoid|skip|nope|nahi|nahin|mat|pasand nahi|bilkul nahi|rehne do|chhod|chod|mann nahi|mood nahi)\b/i;
 const jokePattern = /\b(jk|joking|mazak|mazaak|lol kidding|just kidding)\b/i;
 // A statement about someone else: a pronoun, or "Name likes/wants ..." — these
 // must not be attributed to the speaker.
@@ -128,14 +133,18 @@ const thirdPersonSubjectPattern =
 
 function detectLanguage(text: string): MessageExtraction["language"] {
   if (/[\u0900-\u097F]/.test(text)) return "hi";
-  if (/\b(kya|hai|hain|mujhe|nahi|chalo|karna|jana|yaar|bhai|budget)\b/i.test(text)) {
+  if (
+    /\b(kya|hai|hain|mujhe|nahi|chalo|chalein|karna|karte|jana|ghoomne|ghumne|nikalte|yaar|bhai|matlab|raha|pakka|chalega|hazaar|budget)\b/i.test(
+      text,
+    )
+  ) {
     return "hinglish";
   }
   return /[a-z]/i.test(text) ? "en" : "unknown";
 }
 
 const MONEY_UNIT: Record<string, number> = {
-  k: 1000, thousand: 1000, grand: 1000,
+  k: 1000, thousand: 1000, grand: 1000, hazaar: 1000, hazar: 1000,
   lakh: 100000, lakhs: 100000, lac: 100000, lacs: 100000, l: 100000,
   cr: 10000000, crore: 10000000, crores: 10000000,
 };
@@ -145,7 +154,7 @@ function extractBudget(text: string): MessageExtraction["facts"] {
   // A number counts as money only with a signal: a ₹/rs/inr/budget prefix, or a
   // rupees/k/lakh suffix — so "3 day" and "17th" aren't read as budgets.
   const re =
-    /(₹|rs\.?|inr|budget(?:\s*(?:is|cap|of|around|:|=))?)?\s*₹?\s*(\d[\d,]*\.?\d*)\s*(k|thousand|grand|lakhs?|lacs?|l|cr|crores?|rupees?|rs\.?|inr|₹|\/-)?/gi;
+    /(₹|rs\.?|inr|budget(?:\s*(?:is|cap|of|around|:|=))?)?\s*₹?\s*(\d[\d,]*\.?\d*)\s*(k|thousand|grand|hazaar|hazar|lakhs?|lacs?|l|cr|crores?|rupees?|rs\.?|inr|₹|\/-)?/gi;
   for (const m of text.matchAll(re)) {
     const unit = (m[3] ?? "").toLowerCase().replace(/[.\s/-]/g, "");
     if (!m[1] && !unit) continue; // bare number, no money signal
@@ -164,13 +173,26 @@ function extractBudget(text: string): MessageExtraction["facts"] {
 }
 
 function extractDuration(text: string): MessageExtraction["facts"] {
-  const match = text.match(/\b(\d{1,2})\s*(?:day|days|din)\b/i);
-  if (!match) return [];
+  const lower = text.toLowerCase();
+  const dayMatch = lower.match(/\b(\d{1,2})\s*(?:days?|din|dino)\b/);
+  const nightMatch = lower.match(/\b(\d{1,2})\s*(?:nights?|raat(?:ein|en)?)\b/);
+  let days: number | null = dayMatch ? Number(dayMatch[1]) : null;
+  if (nightMatch) {
+    // "3 din 2 raat" → 3 days; "2 nights" alone → a 3-day trip.
+    const fromNights = Number(nightMatch[1]) + 1;
+    days = days != null ? Math.max(days, fromNights) : fromNights;
+  }
+  // Weekend idioms — the default Indian getaway unit — only if no explicit count.
+  if (days == null) {
+    if (/\blong weekend\b/.test(lower)) days = 3;
+    else if (/\bweekend\b/.test(lower)) days = 2;
+  }
+  if (days == null) return [];
   return [
     {
       kind: "duration_days",
-      value: Number(match[1]),
-      confidence: 0.9,
+      value: days,
+      confidence: dayMatch || nightMatch ? 0.9 : 0.7,
       isHard: /\b(only|maximum|max|sirf)\b/i.test(text),
     },
   ];
@@ -248,7 +270,11 @@ function extractOrigin(text: string): MessageExtraction["facts"] {
 }
 
 const DESTINATION_VERBS =
-  /\b(?:go(?:ing)? to|wanna go to|want(?:ed)? to go(?: to)?|visit(?:ing)?|trip to|travel to|head(?:ing)? to|how about|what about|let'?s do|consider|thinking(?: of| about)?|plan(?:ning)?(?: a trip)?(?: for| to)?|destination(?:'?s| is)?)\s+([A-Za-z][A-Za-z]+(?:\s+[A-Za-z]+)?)/gi;
+  /\b(?:go(?:ing)? to|wanna go to|want(?:ed)? to go(?: to)?|visit(?:ing)?|trip to|travel to|head(?:ing)? to|how about|what about|let'?s do|consider|thinking(?: of| about)?|plan(?:ning)?(?: a trip)?(?: for| to)?|destination(?:'?s| is)?|chalo|chalein)\s+([A-Za-z][A-Za-z]+(?:\s+[A-Za-z]+)?)/gi;
+// Hinglish where the place PRECEDES the verb: "Goa chalein", "Manali nikalte
+// hain", "Coorg ghoomne". Strong trip-intent verbs only, to avoid false places.
+const DESTINATION_POSTFIX =
+  /\b([A-Za-z][A-Za-z]+(?:\s+[A-Za-z]+)?)\s+(?:chalein|chalte hain|ghoomne|ghumne|nikalte hain|maarte hain|maaro)\b/gi;
 // Words that follow a "go to / visit" verb but aren't a place.
 const PLACE_STOPWORDS = new Set([
   "the", "a", "an", "it", "this", "that", "there", "here", "home", "work",
@@ -257,19 +283,26 @@ const PLACE_STOPWORDS = new Set([
   "anywhere", "nowhere", "places", "place", "trip", "beach", "beaches",
   "mountains", "hills", "town", "plan", "do", "see", "eat", "stay", "relax",
   "party", "explore", "more", "some", "any", "my", "our", "hell",
+  // Hinglish non-places that precede a go-verb ("ghar chalein", "so jaate hain").
+  "ghar", "wapas", "vapas", "wapis", "so", "vapss",
+  "kal", "parso", "aaj", "abhi", "thoda", "thodi", "subah", "shaam", "raat",
+  "kahin", "kuch", "wahan", "yahan", "saath", "sab", "chalo", "chal",
 ]);
 
 function extractDestination(text: string): MessageExtraction["facts"] {
   const found = new Set<string>();
-  for (const match of text.matchAll(DESTINATION_VERBS)) {
-    const phrase = match[1]
+  const add = (raw: string | undefined) => {
+    if (!raw) return;
+    const phrase = raw
       .trim()
       .replace(/\b(for|on|in|next|this|please|pls|trip|vacation)\b.*$/i, "")
       .trim();
     const first = phrase.split(/\s+/)[0]?.toLowerCase();
-    if (!first || PLACE_STOPWORDS.has(first)) continue;
+    if (!first || PLACE_STOPWORDS.has(first)) return;
     found.add(phrase.replace(/\b\w/g, (c) => c.toUpperCase()));
-  }
+  };
+  for (const match of text.matchAll(DESTINATION_VERBS)) add(match[1]);
+  for (const match of text.matchAll(DESTINATION_POSTFIX)) add(match[1]);
   return [...found].slice(0, 3).map((value) => ({
     kind: "destination" as const,
     value,
@@ -399,6 +432,7 @@ export async function extractMessage(input: {
     schema: MessageExtractionSchema,
     system: `You extract travel planning facts from Indian WhatsApp group chat.
 Return JSON only. Understand English, Hindi, and Roman-script Hinglish.
+Hinglish mixes English nouns with Hindi verbs/markers — the place often PRECEDES the verb: "Goa chalein"/"Manali nikalte hain"/"Coorg ghoomne" = destination; "ghar/wapas chalein" = NOT a place. Money: "hazaar"=1000, "per head/per banda"=per person. Time: "din"=days, "raat"=nights ("3 din 2 raat"=3-day trip), "long weekend"=3 days, "weekend"=2. Negation/skip: "rehne do"/"mann nahi"/"mood nahi". Vibe slang: "scene"/"vibe"/"mood"/"chull" express interest; "daru/theka"=nightlife, "khau/chatori"=food.
 Only attribute a personal preference when the speaker uses direct first-person evidence.
 Jokes, forwarded content, and statements about another person cannot create hard constraints.
 Allowed interest tags: ${interestTags.join(", ")}.

@@ -191,4 +191,74 @@ describe("deterministic conversation extraction", () => {
     expect(barbecue.preferences.map((p) => p.tag)).toContain("beaches");
     expect(barbecue.preferences.map((p) => p.tag)).not.toContain("nightlife"); // "bars" ⊄ "barbecue"
   });
+
+  // Real Hinglish trip-talk: the place precedes a Hindi verb, plus hazaar /
+  // per-head money and din/raat/weekend durations.
+  it("reads a place that precedes a Hinglish go-verb", () => {
+    expect(
+      extractDeterministically("Goa chalein 4 din, per head 12k").facts.find(
+        (f) => f.kind === "destination",
+      )?.value,
+    ).toBe("Goa");
+    expect(
+      extractDeterministically("chalo Manali").facts.find(
+        (f) => f.kind === "destination",
+      )?.value,
+    ).toBe("Manali");
+    // a Hinglish non-place before a go-verb must NOT register
+    expect(
+      extractDeterministically("ghar chalein").facts.some(
+        (f) => f.kind === "destination",
+      ),
+    ).toBe(false);
+  });
+
+  it("captures din/raat/weekend durations and hazaar money", () => {
+    const trip = extractDeterministically("Goa chalein 4 din, per head 12k");
+    expect(trip.facts.find((f) => f.kind === "duration_days")?.value).toBe(4);
+    expect(trip.facts.find((f) => f.kind === "budget_max")?.value).toBe(12000);
+
+    expect(
+      extractDeterministically("long weekend pe ghoomne ka mann hai").facts.find(
+        (f) => f.kind === "duration_days",
+      )?.value,
+    ).toBe(3);
+    expect(
+      extractDeterministically("3 din 2 raat ka plan").facts.find(
+        (f) => f.kind === "duration_days",
+      )?.value,
+    ).toBe(3);
+    expect(
+      extractDeterministically("1.5 hazaar per head").facts.find(
+        (f) => f.kind === "budget_max",
+      )?.value,
+    ).toBe(1500);
+  });
+
+  it("handles a Hinglish destination + clause-bound skip negation together", () => {
+    const result = extractDeterministically("Manali nikalte hain, nightlife rehne do");
+    expect(result.facts.find((f) => f.kind === "destination")?.value).toBe("Manali");
+    expect(result.preferences.find((p) => p.tag === "nightlife")?.weight).toBe(-1);
+  });
+
+  it("detects Hinglish food/nightlife slang as interests", () => {
+    expect(
+      extractDeterministically("mujhe street food aur daru chahiye").preferences.map(
+        (p) => p.tag,
+      ),
+    ).toEqual(expect.arrayContaining(["food", "nightlife"]));
+  });
+
+  it("detects a shopping interest without firing on substrings", () => {
+    expect(
+      extractDeterministically("I'm up for some mall hopping and street shopping")
+        .preferences.map((p) => p.tag),
+    ).toContain("shopping");
+    // "mall" must not fire inside "small"
+    expect(
+      extractDeterministically("we are a small group, love trekking").preferences.map(
+        (p) => p.tag,
+      ),
+    ).not.toContain("shopping");
+  });
 });
