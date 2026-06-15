@@ -628,6 +628,7 @@ export async function generatePlans(
         title: `${destination.name}: ${angle === "balanced" ? "the group sweet spot" : angle === "adventurous" ? "go bigger" : "slow down and taste more"}`,
         destinationSlug: destination.slug,
         destinationName: destination.name,
+        destinationState: destination.state,
         angle,
         summary: planSummary,
         preferenceCoverage: matchedTags.slice(0, 6),
