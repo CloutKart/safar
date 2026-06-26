@@ -1002,7 +1002,15 @@ export async function generatePlans(
       }
       if (weather && (weather.highC > 36 || weather.lowC < 0 || weather.rainPct > 70)) {
         trekTradeoffs.push(
-          `Weather for your dates looks tough (${weather.lowC}–${weather.highC}°C, ${weather.rainPct}% rain) — pack accordingly.`,
+          `Tough weather likely (${weather.lowC}–${weather.highC}°C, ${weather.rainPct}% rain) — pack a rain shell + quick-dry shoes; some trails/roads may close.`,
+        );
+      } else if (weather && weather.rainPct >= 40) {
+        trekTradeoffs.push(
+          `Expect some rain (${weather.rainPct}% chance) — carry a light rain jacket and grippy shoes.`,
+        );
+      } else if (weather && weather.lowC < 6) {
+        trekTradeoffs.push(
+          `Chilly mornings (${weather.lowC}°C low) — pack a warm layer.`,
         );
       }
       const tradeoffs = [...destination.cautions, ...trekTradeoffs];

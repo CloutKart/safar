@@ -105,6 +105,15 @@ function photoLabel(type: "hero" | "popular" | "hidden_gem" | "culture"): string
       : "Popular";
 }
 
+// Order the photo strip to follow the trip arc (#15): hero → popular sight →
+// hidden gem → food/culture, so swiping reads like the journey.
+const PHOTO_ARC: Record<"hero" | "popular" | "hidden_gem" | "culture", number> = {
+  hero: 0,
+  popular: 1,
+  hidden_gem: 2,
+  culture: 3,
+};
+
 // Display labels for the internal interest tags — surfaces the marketed wording
 // ("slow travel", "heritage") so the chips read the way the group spoke.
 const TAG_LABEL: Record<string, string> = {
@@ -1762,7 +1771,9 @@ function PlanCard({
       </header>
       {plan.destinationImages && plan.destinationImages.length > 0 && (
         <div className="plan-photos">
-          {plan.destinationImages.map((image) => {
+          {[...plan.destinationImages]
+            .sort((a, b) => PHOTO_ARC[a.type] - PHOTO_ARC[b.type])
+            .map((image) => {
             const alt = `${plan.destinationName} — ${image.type.replace("_", " ")}`;
             return (
               <button
