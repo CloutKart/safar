@@ -13,6 +13,7 @@ import {
   buildTripSummary,
   formatTripSummary,
 } from "@/lib/conversation/summary";
+import { refineSummaryWithLlm } from "@/lib/conversation/refine";
 import { generatePlans } from "@/lib/research/planner";
 import { getStore } from "@/lib/store";
 import type {
@@ -84,7 +85,14 @@ async function postFreshSummary(
   store: SafarStore,
   group: StoredGroup,
 ): Promise<void> {
-  const { summary } = await currentSummaryData(store, group.id);
+  const [{ participants, summary: base }, messages] = await Promise.all([
+    currentSummaryData(store, group.id),
+    store.getRecentMessages(group.id, 80),
+  ]);
+  // One LLM pass over the whole conversation at summarize time (not per message):
+  // corrects Hinglish/fuzzy facts the heuristics miss. Falls back to the
+  // deterministic baseline when no LLM is configured or the call fails.
+  const summary = await refineSummaryWithLlm({ base, messages, participants });
   const stored = await store.createSummary(group.id, summary);
   await send(store, group, formatTripSummary(summary, stored.version));
 }

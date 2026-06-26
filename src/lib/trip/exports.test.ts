@@ -19,6 +19,22 @@ function stop(name: string, kind: ItineraryStop["kind"] = "sight"): ItinerarySto
     mapsUrl: null,
     mustTry: null,
     trail: null,
+    time: null,
+    description: null,
+    bestTime: null,
+    crowdLevel: null,
+    photoScore: null,
+  };
+}
+
+type Day = GeneratedPlan["itinerary"][number];
+function day(partial: Pick<Day, "day" | "title" | "stops" | "stay">): Day {
+  return {
+    theme: "",
+    goal: "",
+    narrative: "",
+    moments: { photoSpot: null, sunset: null, dish: null, cafe: null, experience: null },
+    ...partial,
   };
 }
 
@@ -36,8 +52,8 @@ function plan(
 }
 
 const trekPlan = plan([
-  { day: 1, title: "Arrive, riverside", stops: [stop("Check-in"), stop("Riverside café", "food")], stay: { name: "Doli Guesthouse", area: "Gushaini", approxInrPerNight: 1800 } },
-  { day: 2, title: "Trek day", stops: [stop("Jalori Pass trek", "activity"), stop("Serolsar Lake", "hidden-gem")], stay: null },
+  day({ day: 1, title: "Arrive, riverside", stops: [stop("Check-in"), stop("Riverside café", "food")], stay: { name: "Doli Guesthouse", area: "Gushaini", approxInrPerNight: 1800 } }),
+  day({ day: 2, title: "Trek day", stops: [stop("Jalori Pass trek", "activity"), stop("Serolsar Lake", "hidden-gem")], stay: null }),
 ]);
 
 describe("topHighlights", () => {
@@ -64,7 +80,7 @@ describe("buildIcs", () => {
 
   it("escapes commas in summaries and still anchors when no start date", () => {
     const ics = buildIcs(
-      plan([{ day: 1, title: "Forts, lakes & lanes", stops: [stop("Fort")], stay: null }]),
+      plan([day({ day: 1, title: "Forts, lakes & lanes", stops: [stop("Fort")], stay: null })]),
       { start: null, end: null },
     );
     expect(ics).toContain("Forts\\, lakes");
@@ -92,7 +108,7 @@ describe("packingList", () => {
 
   it("derives beach gear + climate from a beach plan and mountain vibe", () => {
     const beach = plan([
-      { day: 1, title: "Beach day", stops: [stop("Om Beach"), stop("Beach shack", "food")], stay: null },
+      day({ day: 1, title: "Beach day", stops: [stop("Om Beach"), stop("Beach shack", "food")], stay: null }),
     ]);
     const flat = packingList(beach, ["mountains"]).flatMap((s) => s.items);
     expect(flat).toContain("Sunscreen SPF 50");

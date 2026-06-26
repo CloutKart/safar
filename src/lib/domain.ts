@@ -33,6 +33,7 @@ export const FactKindSchema = z.enum([
   "duration_days",
   "budget_min",
   "budget_max",
+  "group_size",
   "transport",
   "restriction",
 ]);
@@ -138,6 +139,14 @@ export const ItineraryStopSchema = z.object({
   mustTry: z.string().nullable().default(null),
   // Trekking metadata when kind === "trail" (Part C). Null for non-trail stops.
   trail: TrailMetaSchema.nullable().default(null),
+  // V1.2 storyboard fields (all optional). `time` is a clock label ("8:00 AM");
+  // `description` is the richer 2–3 line "why it's worth it" (the LLM fills it,
+  // else falls back to `note`). Crowd intelligence is a labeled estimate.
+  time: z.string().nullable().default(null),
+  description: z.string().nullable().default(null),
+  bestTime: z.string().nullable().default(null),
+  crowdLevel: z.enum(["low", "medium", "high"]).nullable().default(null),
+  photoScore: z.number().int().min(1).max(5).nullable().default(null),
 });
 export type ItineraryStop = z.infer<typeof ItineraryStopSchema>;
 
@@ -147,12 +156,33 @@ export const ItineraryStaySchema = z.object({
   approxInrPerNight: z.number().nonnegative().nullable().default(null),
 });
 
+// A small "highlight reel" per day (#9 Group Moments).
+export const GroupMomentsSchema = z.object({
+  photoSpot: z.string().nullable().default(null),
+  sunset: z.string().nullable().default(null),
+  dish: z.string().nullable().default(null),
+  cafe: z.string().nullable().default(null),
+  experience: z.string().nullable().default(null),
+});
+
 export const ItineraryDaySchema = z.object({
   day: z.number().int().positive(),
   title: z.string(),
   stops: z.array(ItineraryStopSchema).min(1),
   stay: ItineraryStaySchema.nullable().default(null),
+  // V1.2: each day gets a personality (#1) and an optional narrative (#14).
+  theme: z.string().default(""),
+  goal: z.string().default(""),
+  narrative: z.string().default(""),
+  moments: GroupMomentsSchema.default({
+    photoSpot: null,
+    sunset: null,
+    dish: null,
+    cafe: null,
+    experience: null,
+  }),
 });
+export type ItineraryDay = z.infer<typeof ItineraryDaySchema>;
 
 export const CostBreakdownSchema = z.object({
   transportInr: z.number().nonnegative(),
@@ -179,6 +209,31 @@ export const CostEstimateSchema = z.object({
   assumptions: z.array(z.string()),
   deepLinks: z.array(z.string().url()),
   breakdown: CostBreakdownSchema.nullable().default(null),
+  // Per-meal split of the daily food spend (#10), a labeled estimate.
+  foodBreakdown: z
+    .object({
+      breakfastInr: z.number().nonnegative(),
+      lunchInr: z.number().nonnegative(),
+      dinnerInr: z.number().nonnegative(),
+      snacksInr: z.number().nonnegative(),
+      dailyTotalInr: z.number().nonnegative(),
+    })
+    .nullable()
+    .default(null),
+});
+
+// A synthesized, clearly-labeled door-to-door transport plan (#6).
+export const TransportLegSchema = z.object({
+  mode: z.string(),
+  from: z.string(),
+  to: z.string(),
+  hours: z.number().nonnegative().nullable().default(null),
+  inr: z.number().nonnegative().nullable().default(null),
+});
+export const TransportPlanSchema = z.object({
+  legs: z.array(TransportLegSchema),
+  totalHours: z.number().nonnegative().nullable().default(null),
+  perPersonInr: z.number().nonnegative().nullable().default(null),
 });
 
 export const GeneratedPlanSchema = z.object({
@@ -208,6 +263,30 @@ export const GeneratedPlanSchema = z.object({
       }),
     )
     .default([]),
+  // ── V1.2 storyboard (all defaulted for back-compat) ──
+  // Ticked reasons this destination was picked (#4) + how many were considered.
+  whyReasons: z.array(z.string()).default([]),
+  destinationsAnalysed: z.number().int().nonnegative().default(0),
+  // The "AI thinking" paragraph (#19): why this over the alternatives.
+  reasoning: z.string().default(""),
+  // Who the trip suits — and doesn't (#16).
+  perfectFor: z.array(z.string()).default([]),
+  notIdealFor: z.array(z.string()).default([]),
+  // Summary-card vitals (#18).
+  difficulty: z.enum(["easy", "moderate", "challenging"]).default("moderate"),
+  pace: z.enum(["relaxed", "balanced", "packed"]).default("balanced"),
+  travelHours: z.number().nonnegative().nullable().default(null),
+  // Per-dimension 1–5 ratings for the comparison stars (#17).
+  dimensions: z
+    .object({
+      adventure: z.number().int().min(0).max(5),
+      relaxation: z.number().int().min(0).max(5),
+      culture: z.number().int().min(0).max(5),
+      crowd: z.number().int().min(0).max(5),
+    })
+    .nullable()
+    .default(null),
+  transport: TransportPlanSchema.nullable().default(null),
 });
 export type GeneratedPlan = z.infer<typeof GeneratedPlanSchema>;
 

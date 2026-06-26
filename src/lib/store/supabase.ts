@@ -1,4 +1,5 @@
 import { getSupabaseAdmin } from "@/lib/supabase/admin";
+import { GeneratedPlanSchema } from "@/lib/domain";
 import type {
   GeneratedPlan,
   InterestTag,
@@ -58,12 +59,15 @@ function mapParticipant(row: Record<string, unknown>): StoredParticipant {
 }
 
 function mapPlan(row: Record<string, unknown>): StoredPlan {
+  // Re-parse so plans stored before a schema field existed (V1.2 storyboard
+  // fields, etc.) backfill their defaults and never crash the newer UI.
+  const parsed = GeneratedPlanSchema.safeParse(row.content);
   return {
     id: String(row.id),
     groupId: String(row.group_id),
     summaryId: String(row.summary_id),
     optionNumber: Number(row.option_number),
-    content: row.content as GeneratedPlan,
+    content: parsed.success ? parsed.data : (row.content as GeneratedPlan),
   };
 }
 

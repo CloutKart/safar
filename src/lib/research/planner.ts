@@ -30,6 +30,17 @@ import {
 import { dishesFor, type Dish } from "@/data/dishes";
 import { lookupCoords } from "@/lib/cityCoords";
 import { fetchWeather, type WeatherSummary } from "@/lib/weather";
+import {
+  audience,
+  buildDimensions,
+  buildTransport,
+  buildWhyReasons,
+  difficultyAndPace,
+  foodSplit,
+  narrativeFallback,
+  reasoningFallback,
+  storyboardItinerary,
+} from "@/lib/research/storyboard";
 
 // Interests that signal a trek-leaning group — drives whether we fetch trails and
 // weight trail depth into the match score.
@@ -312,9 +323,29 @@ function stop(
     mapsUrl: null,
     mustTry: null,
     trail: null,
+    time: null,
+    description: null,
+    bestTime: null,
+    crowdLevel: null,
+    photoScore: null,
     ...partial,
   };
 }
+
+// Empty day-level storyboard fields, filled by the storyboard enrichers and/or
+// the LLM. Spread into freshly-built days so they satisfy the schema type.
+const EMPTY_DAY_STORY = {
+  theme: "",
+  goal: "",
+  narrative: "",
+  moments: {
+    photoSpot: null,
+    sunset: null,
+    dish: null,
+    cafe: null,
+    experience: null,
+  },
+} as const;
 
 // Big-ticket experiences (treks, rafting, dives) are priced as activities;
 // everything else from the catalog highlights is a low-cost sightseeing entry.
@@ -369,6 +400,7 @@ function fallbackItinerary(
             : `${capitalize(angle)} day ${index + 1}`,
       stops,
       stay: null,
+      ...EMPTY_DAY_STORY,
     };
   });
 }
@@ -596,7 +628,10 @@ function injectTrails(
 const PLANNER_SYSTEM = `You are Safar, a sharp India travel planner who knows places beyond the obvious tourist list. You write one concrete plan for ONE destination for a friend group.
 
 Rules:
-- Output STRICT JSON only, matching: {"summary": string, "itinerary": [{"day": number, "title": string, "stops": [{"name": string, "kind": "sight"|"hidden-gem"|"activity"|"food"|"transport"|"trail", "note": string, "approxInr": number|null, "mustTry": string|null}], "stay": {"name": string, "area": string, "approxInrPerNight": number|null} | null}]}.
+- Output STRICT JSON only, matching: {"summary": string, "reasoning": string, "itinerary": [{"day": number, "theme": string, "goal": string, "narrative": string, "title": string, "stops": [{"name": string, "kind": "sight"|"hidden-gem"|"activity"|"food"|"transport"|"trail", "note": string, "description": string, "approxInr": number|null, "mustTry": string|null}], "stay": {"name": string, "area": string, "approxInrPerNight": number|null} | null}]}.
+- "reasoning": 1-2 warm sentences on WHY this destination suits THIS group over the alternatives (reference their interests/budget/dates). This is the "AI thinking" the group reads first.
+- Give every day a distinct "theme" (e.g. "Arrival & Slow Evening", "Adventure Day", "Culture & Hidden Gems", "Farewell Morning") and a one-line "goal" — no two days should feel the same. "narrative" is a short, warm 1-2 sentence story of the day ("Today is your adventure day — after breakfast you trek through pine forest to a quiet waterfall…").
+- "description": 1-2 lines per stop on WHY it's worth it / what to expect (e.g. "17th-century wooden temple, one of the least crowded heritage spots in the valley"). "note" stays a 3-5 word tag. Make people excited, stay truthful.
 - You are given "localTrails" — real trekking routes (with distance/difficulty/altitude). When the group wants trekking/adventure, build days around a NAMED trail from this list as a "trail" stop, budgeting a half/full day for it; for high-altitude routes add an acclimatisation day and an early-start note. Never invent a generic "scenic trek".
 - You are given "signatureDishes" — real local dishes. On every "food" stop set "mustTry" to a specific dish the named eatery is known for (prefer these); never leave a food stop without a real dish.
 - Produce EXACTLY the requested number of days.
@@ -612,10 +647,11 @@ Rules:
 - Name a realistic mid-range "stay" per day (a real, plausible property/area for that place), with a per-night per-person estimate.
 - "approxInr" is a rough PER-PERSON estimate for that stop (entry, ride, meal). Use null when free. These are estimates, not quotes; keep them realistic for India and within the group's budget.
 - Ground everything in the provided destination highlights, cautions and research. Respect the group's days, budget and hard constraints. Never recommend anything the cautions warn against.
-- Keep notes to one short line. No markdown, no prose outside the JSON.`;
+- Keep "note" to one short tag and put the real explanation in "description". No markdown, no prose outside the JSON.`;
 
 const PlanDetailSchema = z.object({
   summary: z.string(),
+  reasoning: z.string().default(""),
   itinerary: z.array(ItineraryDaySchema).min(1),
 });
 
@@ -630,10 +666,15 @@ async function enrichItinerary(input: {
   preferenceFocus: PreferenceFocus[];
   trails: Trail[];
   dishes: Dish[];
+  alternatives: string[];
+  excluded: string[];
 }): Promise<z.infer<typeof PlanDetailSchema> | null> {
   const context = {
     angle: input.angle,
     days: input.days,
+    // So the LLM's "reasoning" can justify this pick over the other options.
+    otherOptions: input.alternatives,
+    ruledOut: input.excluded,
     localGems: input.gems
       .slice(0, 8)
       .map((gem) => ({ name: gem.name, type: gem.type, note: gem.blurb })),
@@ -870,6 +911,12 @@ export async function generatePlans(
       // fallback so plans curate per preference instead of generically.
       const preferenceFocus = buildPreferenceFocus(weights, gems);
 
+      // The other two destinations on the table — so the LLM (and the
+      // deterministic fallback) can justify this pick over them (#19).
+      const alternatives = finalSelection
+        .filter((d) => d.slug !== destination.slug)
+        .map((d) => d.name);
+
       // LLM-written specifics, grounded in the catalog + pricing + research.
       // Falls back to a generic template when no LLM is configured.
       // Run the LLM and photo lookups concurrently.
@@ -885,6 +932,8 @@ export async function generatePlans(
           preferenceFocus,
           trails,
           dishes,
+          alternatives,
+          excluded: summary.excludedDestinations,
         }),
         planPhotos(destination.name, gems).catch(() => []),
       ]);
@@ -958,6 +1007,36 @@ export async function generatePlans(
       }
       const tradeoffs = [...destination.cautions, ...trekTradeoffs];
 
+      // ── V1.2 storyboard: turn the itinerary into a scannable, justified story.
+      const { transport, travelHours } = buildTransport(summary, destination, transportInr);
+      const storyItinerary = storyboardItinerary(itinerary, gems).map((day) => ({
+        ...day,
+        narrative: day.narrative || narrativeFallback(day),
+      }));
+      const { difficulty, pace } = difficultyAndPace(storyItinerary, trails);
+      const whyReasons = buildWhyReasons({
+        summary,
+        destination,
+        matchedTags,
+        likelyInr: likely,
+        travelHours,
+        trails,
+        gems,
+        weather,
+        pace,
+      });
+      const { perfectFor, notIdealFor } = audience(destination, matchedTags);
+      const dimensions = buildDimensions(destination, trails, gems);
+      const reasoning =
+        detail?.reasoning ||
+        reasoningFallback({
+          destination,
+          matchedTags,
+          excluded: summary.excludedDestinations,
+          alternatives,
+          destinationsAnalysed: ranked.length,
+        });
+
       const retrievedAt = new Date().toISOString();
       return GeneratedPlanSchema.parse({
         optionNumber: index + 1,
@@ -971,7 +1050,17 @@ export async function generatePlans(
         summary: planSummary,
         preferenceCoverage: matchedTags.slice(0, 6),
         tradeoffs,
-        itinerary,
+        itinerary: storyItinerary,
+        whyReasons,
+        destinationsAnalysed: ranked.length,
+        reasoning,
+        perfectFor,
+        notIdealFor,
+        difficulty,
+        pace,
+        travelHours,
+        dimensions,
+        transport,
         sources: [
           {
             title: destination.state
@@ -1004,6 +1093,7 @@ export async function generatePlans(
           assumptions: quotes.map((quote) => quote.assumption),
           deepLinks: quotes.map((quote) => quote.deepLink),
           breakdown: { transportInr, stayInr, activitiesInr, foodInr },
+          foodBreakdown: foodSplit(foodInr, days),
         },
         destinationImages,
       });

@@ -38,8 +38,8 @@ const interestAliases: Record<InterestTag, string[]> = {
     "supernatural", "paranormal", "bhoot",
   ],
   cafes: [
-    "cafe", "cafes", "café", "cafe hopping", "cafe-hopping", "café hopping",
-    "coffee", "coffee shop", "roastery", "bakery", "patisserie", "brunch",
+    "cafe", "cafes", "café", "cafés", "cafe hopping", "cafe-hopping", "café hopping",
+    "coffee", "coffee shop", "coffee shops", "roastery", "bakery", "patisserie", "brunch",
   ],
   food: [
     "food", "foods", "street food", "seafood", "food crawl", "food walk", "food trail",
@@ -69,14 +69,17 @@ const interestAliases: Record<InterestTag, string[]> = {
   ],
   photography: [
     "photography", "photo", "photos", "photo walk", "pictures", "instagrammable",
-    "instagram", "scenic",
+    "instagram", "scenic", "scenery", "view", "views", "viewpoint", "viewpoints",
+    "vista", "vistas", "waterfall", "waterfalls", "sunset", "sunrise",
   ],
   beaches: [
     "beach", "beaches", "beachy", "sea", "seaside", "ocean", "shore", "coastline",
     "surf", "surfing",
   ],
   mountains: [
-    "mountain", "mountains", "hills", "hill stations", "himalayas", "snow", "alpine", "pahad",
+    "mountain", "mountains", "hills", "hill station", "hill stations", "himalayas",
+    "snow", "alpine", "pahad", "greenery", "lush", "valley", "valleys", "meadow",
+    "meadows", "green hills",
   ],
   "road-trip": [
     "road trip", "road-trip", "roadtrip", "self drive", "drive", "bike trip", "biking trip",
@@ -122,7 +125,11 @@ const firstPersonPattern =
 const preferenceMarker =
   /\b(love|loved|loves|loving|want|wanna|wanted|wish|prefer|prefers|like|likes|liking|enjoy|enjoys|fan of|into|keen|interested|looking for|hoping for|down for|up for|in the mood|mood for|excited for|chahiye|chahta|chahte|chah|pasand|mann|sochna|scene|vibe|mood|chull)\b/i;
 const negativePattern =
-  /\b(no|not|don't|dont|hate|hates|avoid|skip|nope|nahi|nahin|mat|pasand nahi|bilkul nahi|rehne do|chhod|chod|mann nahi|mood nahi)\b/i;
+  /\b(no|not|don'?t|hate|hates|avoid|skip|nope|nahi|nahin|mat|pasand nahi|bilkul nahi|rehne do|chhod|chod|mann nahi|mood nahi)\b/i;
+// A soft "not a big deal" — the interest is de-emphasised, not disliked. We drop
+// it entirely rather than mark it negative ("nightlife isn't a priority").
+const deprioritizePattern =
+  /\b(?:isn'?t|aren'?t|not|no|nahi)\s+(?:really\s+|that\s+|a\s+|the\s+|much\s+of\s+a\s+)*(?:priority|prioritis\w*|must|big\s+deal|fussed|bothered|essential|necessary|important|compulsory)\b|\blow\s+priority\b|\bnot\s+really\b|\boptional\b|\bnot\s+(?:fussed|bothered)\b/i;
 const jokePattern = /\b(jk|joking|mazak|mazaak|lol kidding|just kidding)\b/i;
 // A statement about someone else: a pronoun, or "Name likes/wants ..." — these
 // must not be attributed to the speaker.
@@ -149,27 +156,53 @@ const MONEY_UNIT: Record<string, number> = {
   cr: 10000000, crore: 10000000, crores: 10000000,
 };
 
+// A money context lets bare numbers (no ₹/unit) count — so "budget of around
+// ₹12,000-15,000 per person" captures both, while "4 days"/"5 friends" don't.
+const BUDGET_SIGNAL =
+  /(₹|\brs\.?\b|\binr\b|\bbudget\b|\bspend\b|\bcost\b|\bper\s*(?:person|head|banda|pax|pp)\b|\bpp\b|\bper\s*head\b)/i;
+
 function extractBudget(text: string): MessageExtraction["facts"] {
+  const hasSignal = BUDGET_SIGNAL.test(text);
   const amounts: number[] = [];
-  // A number counts as money only with a signal: a ₹/rs/inr/budget prefix, or a
-  // rupees/k/lakh suffix — so "3 day" and "17th" aren't read as budgets.
+  // Each number with an optional ₹/rs prefix and an optional k/thousand/lakh
+  // unit. The prefix/unit attaches money meaning; otherwise a budget context +
+  // a sane magnitude (≥1000, ≤50L) does — so ranges and filler don't break it.
   const re =
-    /(₹|rs\.?|inr|budget(?:\s*(?:is|cap|of|around|:|=))?)?\s*₹?\s*(\d[\d,]*\.?\d*)\s*(k|thousand|grand|hazaar|hazar|lakhs?|lacs?|l|cr|crores?|rupees?|rs\.?|inr|₹|\/-)?/gi;
+    /(₹|rs\.?|inr)?\s*(\d[\d,]*\.?\d*)\s*(k|thousand|grand|hazaar|hazar|lakhs?|lacs?|l|cr|crores?|rupees?|rs\.?|inr|₹|\/-)?/gi;
   for (const m of text.matchAll(re)) {
+    const prefix = m[1];
     const unit = (m[3] ?? "").toLowerCase().replace(/[.\s/-]/g, "");
-    if (!m[1] && !unit) continue; // bare number, no money signal
     const base = Number(m[2].replace(/,/g, ""));
     if (!Number.isFinite(base)) continue;
     const value = Math.round(base * (MONEY_UNIT[unit] ?? 1));
-    if (value >= 300) amounts.push(value);
+    const hasMoneyToken = Boolean(prefix) || Boolean(unit);
+    const raw = m[2].replace(/,/g, "");
+    const yearLike = /^(?:19|20)\d{2}$/.test(raw) && !m[2].includes(",");
+    if (hasMoneyToken) {
+      if (value >= 300) amounts.push(value);
+    } else if (hasSignal && value >= 1000 && value <= 5_000_000 && !yearLike) {
+      // bare number in a budget message (e.g. the "15,000" in "₹12,000-15,000")
+      amounts.push(value);
+    }
   }
   if (amounts.length === 0) return [];
   const capWords =
-    /\b(max|maximum|under|within|cap|upto|up to|at most|budget|only)\b/i.test(text);
+    /\b(max|maximum|under|within|cap|upto|up to|at most|only)\b/i.test(text);
   return [
-    { kind: "budget_min", value: Math.min(...amounts), confidence: 0.85, isHard: capWords || negativePattern.test(text) },
+    { kind: "budget_min", value: Math.min(...amounts), confidence: 0.85, isHard: capWords },
     { kind: "budget_max", value: Math.max(...amounts), confidence: 0.85, isHard: capWords },
   ];
+}
+
+// "5 friends", "we are 6", "hum 4 log", "group of 5", "5 of us", "5 bande".
+function extractGroupSize(text: string): MessageExtraction["facts"] {
+  const m =
+    text.match(/\b(\d{1,2})\s*(?:friends?|of us|people|ppl|members?|adults?|pax|log|logon|bande|banda|jane|jne|dost|doston)\b/i) ??
+    text.match(/\b(?:we are|we're|hum|group of|party of|total)\s+(\d{1,2})\b/i);
+  if (!m) return [];
+  const size = Number(m[1]);
+  if (!Number.isFinite(size) || size < 1 || size > 40) return [];
+  return [{ kind: "group_size", value: size, confidence: 0.8, isHard: false }];
 }
 
 function extractDuration(text: string): MessageExtraction["facts"] {
@@ -249,13 +282,14 @@ function extractDates(text: string): MessageExtraction["facts"] {
 }
 
 function extractOrigin(text: string): MessageExtraction["facts"] {
-  const patterns = [
-    /\b(?:departure city|departure point|departing from|departing|leaving from|leaving|leave from|starting from|start from|flying from|travell?ing from|coming from)\b(?:\s+is)?\s*:?\s*([a-z][a-z .]{1,30})/i,
-    /\b(?:from|based in|live in)\s+([a-z][a-z .]{1,30})/i,
-    /\b(?:main|hum)\s+([a-z][a-z .]{1,24})\s+(?:se|mein)\b/i,
+  // Explicit English triggers — the trigger itself ("from", "departing from") is
+  // strong evidence the next word is the origin, so accept any non-filler word.
+  const englishPatterns = [
+    /\b(?:departure city|departure point|departing from|departing|leaving from|leaving|leave from|starting from|start from|flying from|travell?ing from|coming from|based (?:in|out of)|live in|hailing from|all the way from)\b(?:\s+is)?\s*:?\s*([a-z][a-z .]{1,30})/i,
+    /\b(?:we(?:'re| are)?|i(?:'m| am)?|us|group)?\s*from\s+([a-z][a-z .]{1,30})/i,
   ];
-  const stop = /^(the|a|an|here|there|home|work|now|today|tomorrow|class|office|trip)\b/i;
-  for (const pattern of patterns) {
+  const stop = /^(the|a|an|here|there|home|work|now|today|tomorrow|class|office|trip|delhi se)\b/i;
+  for (const pattern of englishPatterns) {
     const match = text.match(pattern);
     if (!match) continue;
     const value = match[1]
@@ -265,6 +299,14 @@ function extractOrigin(text: string): MessageExtraction["facts"] {
       .trim();
     if (!value || stop.test(value)) continue;
     return [{ kind: "origin", value, confidence: 0.78, isHard: true }];
+  }
+  // Hinglish postfix: the place sits right before "se"/"mein" ("Delhi se",
+  // "hum 5 friends Delhi se ..."). "se" is common, so require a real place.
+  for (const match of text.matchAll(/\b([A-Za-z][a-zA-Z]+)\s+(?:se|mein)\b/g)) {
+    const cand = match[1];
+    if (looksLikePlace(cand)) {
+      return [{ kind: "origin", value: cand, confidence: 0.74, isHard: true }];
+    }
   }
   return [];
 }
@@ -283,11 +325,29 @@ const PLACE_STOPWORDS = new Set([
   "anywhere", "nowhere", "places", "place", "trip", "beach", "beaches",
   "mountains", "hills", "town", "plan", "do", "see", "eat", "stay", "relax",
   "party", "explore", "more", "some", "any", "my", "our", "hell",
+  // Generic words a verb-regex can wrongly capture as a place.
+  "popular", "hidden", "must", "local", "gem", "gems", "view", "views",
+  "waterfall", "waterfalls", "market", "markets", "spot", "spots", "thing",
+  "things", "vacation", "holiday", "getaway", "somewhere nice", "nice",
+  // Hinglish filler a "plan(ning)" verb captures ("plan kar rahe hain").
+  "kar", "rahe", "raha", "rahi", "rhe", "rha", "hain", "hai", "karna", "karte",
+  "karenge", "krna", "krenge", "soch", "sochna", "sochte",
   // Hinglish non-places that precede a go-verb ("ghar chalein", "so jaate hain").
   "ghar", "wapas", "vapas", "wapis", "so", "vapss",
   "kal", "parso", "aaj", "abhi", "thoda", "thodi", "subah", "shaam", "raat",
   "kahin", "kuch", "wahan", "yahan", "saath", "sab", "chalo", "chal",
 ]);
+
+// A captured phrase is a real place only if the catalog knows it, or it reads as
+// a proper noun (capitalised in the source) — never a lowercase common word.
+function looksLikePlace(phrase: string): boolean {
+  const lower = phrase.toLowerCase();
+  const first = lower.split(/\s+/)[0] ?? "";
+  if (!first || PLACE_STOPWORDS.has(first) || PLACE_STOPWORDS.has(lower)) return false;
+  const known = KNOWN_PLACES.has(lower) || KNOWN_PLACES.has(first);
+  const properNoun = /^[A-Z]/.test(phrase.trim());
+  return known || properNoun;
+}
 
 function extractDestination(text: string): MessageExtraction["facts"] {
   const found = new Set<string>();
@@ -297,8 +357,9 @@ function extractDestination(text: string): MessageExtraction["facts"] {
       .trim()
       .replace(/\b(for|on|in|next|this|please|pls|trip|vacation)\b.*$/i, "")
       .trim();
-    const first = phrase.split(/\s+/)[0]?.toLowerCase();
-    if (!first || PLACE_STOPWORDS.has(first)) return;
+    // Guard against verb-regex false positives ("plan kar rahe", "visit popular
+    // places"): only keep real, place-looking phrases.
+    if (!looksLikePlace(phrase)) return;
     found.add(phrase.replace(/\b\w/g, (c) => c.toUpperCase()));
   };
   for (const match of text.matchAll(DESTINATION_VERBS)) add(match[1]);
@@ -311,30 +372,36 @@ function extractDestination(text: string): MessageExtraction["facts"] {
   }));
 }
 
-const EXCLUDE_PREFIX =
-  /\b(?:not|no|don'?t want(?:\s+to\s+(?:go\s+to|visit))?|do not want|avoid|skip|exclude|except|hate)\s+(?:go(?:ing)?\s+to\s+|going\s+|visit(?:ing)?\s+|to\s+)?([a-z][a-z]+(?:\s+[a-z]+)?)/gi;
-const EXCLUDE_POSTFIX =
-  /\b([a-z][a-z]+(?:\s+[a-z]+)?)\s+(?:nahi(?:\s+jaana)?|mat\s+jaana|nahi\s+chahiye|na\s+jaana)\b/gi;
+// A place or comma/aur/and-joined list of places ("Goa", "Goa aur Manali").
+const PLACE_LIST = String.raw`[A-Za-z][A-Za-z]+(?:\s*(?:,|&|\baur\b|\band\b|\bor\b)\s*[A-Za-z][A-Za-z]+)*`;
+// Trigger BEFORE the place(s): "avoid Goa", "we've already been to Goa and Manali".
+const EXCLUDE_PREFIX = new RegExp(
+  String.raw`\b(?:not|no|don'?t want(?:\s+to\s+(?:go\s+to|visit))?|do not want|avoid|skip|exclude|except|hate|already\s+(?:been\s+to|visited|did))\s+(?:going\s+to\s+|go(?:ing)?\s+to\s+|visit(?:ing)?\s+|to\s+)?(${PLACE_LIST})`,
+  "gi",
+);
+// Trigger AFTER the place(s): "Goa aur Manali avoid karna hai", "Goa nahi jaana".
+const EXCLUDE_POSTFIX = new RegExp(
+  String.raw`\b(${PLACE_LIST})\s+(?:ko\s+|toh\s+)?(?:avoid(?:\s+karna)?|skip|exclude|nahi(?:\s+jaana)?|mat\s+jaana|nahi\s+chahiye|na\s+jaana|already\s+(?:been|visited|gaye|kar\s+liya|ho\s+gaya))`,
+  "gi",
+);
 
 function extractExcludedDestination(text: string): MessageExtraction["facts"] {
   const found = new Set<string>();
   const add = (raw: string | undefined) => {
     if (!raw) return;
-    const phrase = raw
-      .trim()
-      .replace(/\b(for|on|in|next|this|please|pls|trip|jaana|chahiye)\b.*$/i, "")
-      .trim();
-    const first = phrase.split(/\s+/)[0];
-    if (!first || PLACE_STOPWORDS.has(first.toLowerCase())) return;
-    const isProperNoun = /^[A-Z]/.test(phrase);
-    const isKnownPlace =
-      KNOWN_PLACES.has(phrase.toLowerCase()) || KNOWN_PLACES.has(first.toLowerCase());
-    if (!isProperNoun && !isKnownPlace) return; // a preference negation, not a place
-    found.add(phrase.replace(/\b\w/g, (char) => char.toUpperCase()));
+    // Split a list ("Goa aur Manali") into individual places.
+    for (const part of raw.split(/\s*(?:,|&|\baur\b|\band\b|\bor\b)\s*/i)) {
+      const phrase = part
+        .trim()
+        .replace(/\b(for|on|in|next|this|please|pls|trip|jaana|chahiye)\b.*$/i, "")
+        .trim();
+      if (!phrase || !looksLikePlace(phrase)) continue; // a preference negation, not a place
+      found.add(phrase.replace(/\b\w/g, (char) => char.toUpperCase()));
+    }
   };
   for (const match of text.matchAll(EXCLUDE_PREFIX)) add(match[1]);
   for (const match of text.matchAll(EXCLUDE_POSTFIX)) add(match[1]);
-  return [...found].slice(0, 3).map((value) => ({
+  return [...found].slice(0, 4).map((value) => ({
     kind: "exclude_destination" as const,
     value,
     confidence: 0.72,
@@ -373,27 +440,36 @@ function extractPreferences(text: string): MessageExtraction["preferences"] {
 
   const confidence = hasFirstPerson ? 0.82 : hasPreferenceVerb ? 0.74 : 0.62;
 
-  return matches.map((tag) => {
-    const hit = interestMatchers[tag].exec(lower);
-    const index = hit ? hit.index : 0;
-    const length = hit ? hit[0].length : 0;
-    // Negation binds within a clause: "beaches but no nightlife" negates only
-    // nightlife. Look from the last clause break up to the tag, plus a short
-    // trailing window for postfix Hinglish negation ("nightlife nahi").
-    const before = lower.slice(0, index).split(/[,;.]|\band\b|\bbut\b/).pop() ?? "";
-    // Trailing clause only up to the next break, so "beach, no party" negates
-    // party — not beach.
-    const after =
-      lower.slice(index + length).split(/[,;.]|\band\b|\bbut\b/)[0] ?? "";
-    const negative =
-      negativePattern.test(before) || negativePattern.test(after);
-    return {
-      tag,
-      weight: negative ? -1 : 1,
-      confidence,
-      directFirstPerson: true,
-    };
-  });
+  return matches
+    .map((tag) => {
+      const hit = interestMatchers[tag].exec(lower);
+      const index = hit ? hit.index : 0;
+      const length = hit ? hit[0].length : 0;
+      // Negation binds within a clause: "beaches but no nightlife" negates only
+      // nightlife. Look from the last clause break up to the tag, plus a short
+      // trailing window for postfix Hinglish negation ("nightlife nahi").
+      const before = lower.slice(0, index).split(/[,;.]|\band\b|\bbut\b/).pop() ?? "";
+      // Trailing clause only up to the next break, so "beach, no party" negates
+      // party — not beach.
+      const after =
+        lower.slice(index + length).split(/[,;.]|\band\b|\bbut\b/)[0] ?? "";
+      // Soft de-prioritisation ("nightlife isn't a priority") → drop the tag, so
+      // it's neither a want nor a dislike.
+      if (deprioritizePattern.test(before) || deprioritizePattern.test(after)) {
+        return null;
+      }
+      const negative =
+        negativePattern.test(before) || negativePattern.test(after);
+      return {
+        tag,
+        weight: negative ? -1 : 1,
+        confidence,
+        directFirstPerson: true,
+      };
+    })
+    .filter(
+      (pref): pref is NonNullable<typeof pref> => pref !== null,
+    );
 }
 
 export function extractDeterministically(
@@ -408,6 +484,7 @@ export function extractDeterministically(
     ...extractOrigin(text),
     ...extractDestination(text),
     ...extractExcludedDestination(text),
+    ...extractGroupSize(text),
   ];
 
   return {

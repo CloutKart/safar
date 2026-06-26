@@ -119,6 +119,13 @@ export function buildTripSummary(input: {
   const start = latestString(relevantFacts, "start_date");
   const end = latestString(relevantFacts, "end_date");
   const durationDays = latestNumber(relevantFacts, "duration_days");
+  // A stated party size ("5 friends") is the real trip size even when fewer
+  // people have spoken in the chat; never go below the count of active members.
+  const statedGroupSize = latestNumber(relevantFacts, "group_size");
+  const groupSize = Math.max(
+    input.participants.length,
+    statedGroupSize ?? 0,
+  );
   const minInr = latestNumber(relevantFacts, "budget_min");
   const maxInr = latestNumber(relevantFacts, "budget_max");
   const uncertainties: string[] = [];
@@ -130,7 +137,7 @@ export function buildTripSummary(input: {
   }
 
   return TripSummarySchema.parse({
-    groupSize: input.participants.length,
+    groupSize,
     departureCities,
     requestedDestinations,
     excludedDestinations,

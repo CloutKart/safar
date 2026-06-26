@@ -14,7 +14,8 @@ import {
   type TouchEvent as ReactTouchEvent,
 } from "react";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
-import type { GeneratedPlan } from "@/lib/domain";
+import type { GeneratedPlan, ItineraryStop } from "@/lib/domain";
+import { packingList } from "@/lib/trip/exports";
 import type {
   MemberAvailability,
   MessageHeard,
@@ -1564,12 +1565,29 @@ function PlanCompare({ plans }: { plans: GeneratedPlan[] }) {
             </Fragment>
           );
         })}
+        {([
+          ["Adventure", "adventure"],
+          ["Relaxation", "relaxation"],
+          ["Culture", "culture"],
+          ["Crowd", "crowd"],
+        ] as const).map(([label, key]) =>
+          plans.some((p) => p.dimensions) ? (
+            <Fragment key={label}>
+              <div className="cmp-label">{label}</div>
+              {plans.map((plan, index) => (
+                <div key={index} className="cmp-cell cmp-stars">
+                  {plan.dimensions ? <Stars n={plan.dimensions[key]} /> : "—"}
+                </div>
+              ))}
+            </Fragment>
+          ) : null,
+        )}
         {Array.from({ length: maxDays }).map((_, dayIndex) => (
           <Fragment key={`day-${dayIndex}`}>
             <div className="cmp-label">Day {dayIndex + 1}</div>
             {plans.map((plan, index) => (
               <div key={index} className="cmp-cell cmp-day">
-                {plan.itinerary[dayIndex]?.title ?? "—"}
+                {plan.itinerary[dayIndex]?.theme || plan.itinerary[dayIndex]?.title || "—"}
               </div>
             ))}
           </Fragment>
@@ -1586,11 +1604,13 @@ function PlanWeather({
   name,
   start,
   end,
+  plan,
 }: {
   slug: string;
   name: string;
   start: string | null;
   end: string | null;
+  plan: GeneratedPlan;
 }) {
   const [wx, setWx] = useState<WeatherSummary | null>(null);
   useEffect(() => {
@@ -1610,12 +1630,25 @@ function PlanWeather({
   }, [slug, name, start, end]);
   if (!wx) return null;
   const icon = wx.rainPct >= 50 ? "🌧️" : wx.rainPct >= 20 ? "🌦️" : "☀️";
+  // #7 Carry list — the gear that matters for this itinerary + climate, from the
+  // existing packingList util (skip generic essentials, keep the decisive items).
+  const carry = packingList(plan)
+    .filter((section) => section.category !== "Essentials")
+    .flatMap((section) => section.items)
+    .slice(0, 5);
   return (
-    <p className="plan-weather">
-      <span className="wx-icon">{icon}</span>
-      {wx.lowC}–{wx.highC}°C · {wx.rainPct}% rain
-      {wx.typical && <span className="wx-typical">typical</span>}
-    </p>
+    <div className="plan-weather-block">
+      <p className="plan-weather">
+        <span className="wx-icon">{icon}</span>
+        {wx.lowC}–{wx.highC}°C · {wx.rainPct}% rain
+        {wx.typical && <span className="wx-typical">typical</span>}
+      </p>
+      {carry.length > 0 && (
+        <p className="plan-carry">
+          🎒 Carry: {carry.join(" · ")}
+        </p>
+      )}
+    </div>
   );
 }
 
@@ -1643,6 +1676,46 @@ function MatchRing({ score }: { score: number }) {
         />
       </svg>
       <span className="match-ring-num">{score}</span>
+    </span>
+  );
+}
+
+// A scannable emoji badge per stop (#5): 🔥/💎/🌄/🥾/🍜/☕/🛍/📸.
+function stopBadge(
+  stop: ItineraryStop,
+): { emoji: string; label: string; cls: string } | null {
+  if (stop.kind === "trail")
+    return { emoji: "🥾", label: stop.trail?.hidden ? "Hidden trail" : "Trek", cls: "badge-trail" };
+  if (stop.kind === "hidden-gem") return { emoji: "💎", label: "Hidden gem", cls: "badge-hidden" };
+  if (stop.kind === "food") {
+    if (/caf[eé]|coffee|roast|bakery|brew/i.test(stop.name))
+      return { emoji: "☕", label: "Café", cls: "badge-cafe" };
+    return { emoji: "🍜", label: "Local food", cls: "badge-food" };
+  }
+  if (/market|bazaar|mall|emporium/i.test(stop.name))
+    return { emoji: "🛍", label: "Market", cls: "badge-market" };
+  if (/view|sunset|sunrise|point|vista|cliff|panoram/i.test(stop.name))
+    return { emoji: "🌄", label: "Viewpoint", cls: "badge-view" };
+  if (stop.kind === "sight") {
+    if ((stop.reviewCount ?? 0) > 4000) return { emoji: "🔥", label: "Must visit", cls: "badge-must" };
+    return { emoji: "📸", label: "Sight", cls: "badge-popular" };
+  }
+  if (stop.kind === "activity") return { emoji: "🎯", label: "Activity", cls: "badge-popular" };
+  return null;
+}
+
+const crowdDot: Record<NonNullable<ItineraryStop["crowdLevel"]>, string> = {
+  low: "🟢 quiet",
+  medium: "🟡 moderate",
+  high: "🔴 busy",
+};
+
+// 1–5 star strip for comparison/summary dimensions (#17, #18).
+function Stars({ n }: { n: number }) {
+  return (
+    <span className="stars" aria-label={`${n} of 5`}>
+      {"★".repeat(n)}
+      <span className="stars-empty">{"★".repeat(Math.max(0, 5 - n))}</span>
     </span>
   );
 }
@@ -1709,18 +1782,62 @@ function PlanCard({
           })}
         </div>
       )}
+      {/* #18 Destination summary card — the at-a-glance decision card. */}
+      <div className="plan-vitals">
+        {plan.matchScore > 0 && (
+          <span><b>{plan.matchScore}%</b><small>Confidence</small></span>
+        )}
+        <span><b>{inr(plan.cost.likelyInr)}</b><small>Per person</small></span>
+        {plan.travelHours != null && (
+          <span><b>{plan.travelHours}h</b><small>Travel</small></span>
+        )}
+        <span><b className="cap">{plan.difficulty}</b><small>Difficulty</small></span>
+        <span><b className="cap">{plan.pace}</b><small>Pace</small></span>
+        <span><b>{hiddenGemCount(plan)}</b><small>Hidden gems</small></span>
+      </div>
+      {plan.perfectFor.length > 0 && (
+        <p className="plan-bestfor">🌿 Best for: {plan.perfectFor.join(" · ")}</p>
+      )}
       <PlanWeather
         slug={plan.destinationSlug}
         name={plan.destinationName}
         start={tripDates.start}
         end={tripDates.end}
+        plan={plan}
       />
-      {plan.whyRecommended && (
-        <p className="plan-why">
-          <strong>Why this:</strong> {plan.whyRecommended}
-        </p>
+      {plan.whyReasons.length > 0 && (
+        <ul className="plan-why-list">
+          {plan.whyReasons.map((reason, i) => (
+            <li key={i}>✔ {reason}</li>
+          ))}
+        </ul>
       )}
       <p className="plan-summary">{plan.summary}</p>
+      {plan.reasoning && (
+        <p className="plan-reasoning">
+          <span className="plan-reasoning-tag">🤔 Why this one</span> {plan.reasoning}
+        </p>
+      )}
+      {(plan.perfectFor.length > 0 || plan.notIdealFor.length > 0) && (
+        <div className="plan-audience">
+          {plan.perfectFor.length > 0 && (
+            <div className="aud-col aud-yes">
+              <p>Perfect for</p>
+              {plan.perfectFor.map((x) => (
+                <span key={x}>✔ {x}</span>
+              ))}
+            </div>
+          )}
+          {plan.notIdealFor.length > 0 && (
+            <div className="aud-col aud-no">
+              <p>Not ideal for</p>
+              {plan.notIdealFor.map((x) => (
+                <span key={x}>✖ {x}</span>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
       {plan.itinerary.length > 1 && (
         <button
           type="button"
@@ -1734,11 +1851,17 @@ function PlanCard({
         {plan.itinerary.map((day) => (
           <div className="plan-day" key={day.day}>
             <p className="plan-day-title">
-              <strong>Day {day.day}</strong> · {day.title}
+              <strong>Day {day.day}</strong>
+              {day.theme ? <span className="day-theme"> — {day.theme}</span> : <> · {day.title}</>}
             </p>
+            {day.goal && <p className="day-goal">🎯 {day.goal}</p>}
+            {day.narrative && <p className="day-narrative">{day.narrative}</p>}
             <ul>
-              {day.stops.map((stop, index) => (
+              {day.stops.map((stop, index) => {
+                const badge = stopBadge(stop);
+                return (
                 <li key={index} className={`stop stop-${stop.kind}`}>
+                  {stop.time && <span className="stop-time">{stop.time}</span>}
                   {stop.mapsUrl ? (
                     <a
                       className="stop-name"
@@ -1751,15 +1874,9 @@ function PlanCard({
                   ) : (
                     <span className="stop-name">{stop.name}</span>
                   )}
-                  {stop.kind === "hidden-gem" && (
-                    <span className="badge badge-hidden">💎 Hidden gem</span>
-                  )}
-                  {stop.kind === "sight" && (
-                    <span className="badge badge-popular">Popular</span>
-                  )}
-                  {stop.kind === "trail" && (
-                    <span className="badge badge-trail">
-                      🥾 {stop.trail?.hidden ? "Hidden trail" : "Trail"}
+                  {badge && (
+                    <span className={`badge ${badge.cls}`}>
+                      {badge.emoji} {badge.label}
                     </span>
                   )}
                   {stop.rating != null && (
@@ -1770,9 +1887,18 @@ function PlanCard({
                         : ""}
                     </span>
                   )}
-                  {stop.note && <span className="stop-note"> — {stop.note}</span>}
+                  {(stop.description || stop.note) && (
+                    <span className="stop-note"> — {stop.description || stop.note}</span>
+                  )}
                   {stop.mustTry && (
                     <span className="stop-dish"> · 🍽 try {stop.mustTry}</span>
+                  )}
+                  {(stop.crowdLevel || stop.bestTime) && (
+                    <span className="stop-crowd">
+                      {stop.crowdLevel ? crowdDot[stop.crowdLevel] : ""}
+                      {stop.bestTime ? ` · best ${stop.bestTime}` : ""}
+                      <span className="est-tag">est.</span>
+                    </span>
                   )}
                   {stop.trail && (
                     <span className="stop-trail-meta">
@@ -1799,8 +1925,26 @@ function PlanCard({
                     <span className="stop-review">“{stop.reviewSnippet}”</span>
                   )}
                 </li>
-              ))}
+                );
+              })}
             </ul>
+            {(() => {
+              const m = day.moments;
+              const chips = [
+                m.photoSpot ? `📸 ${m.photoSpot}` : null,
+                m.sunset ? `🌅 ${m.sunset}` : null,
+                m.dish ? `🍜 ${m.dish}` : null,
+                m.cafe ? `☕ ${m.cafe}` : null,
+                m.experience ? `🎵 ${m.experience}` : null,
+              ].filter(Boolean) as string[];
+              return chips.length ? (
+                <div className="day-moments">
+                  {chips.map((c, i) => (
+                    <span key={i}>{c}</span>
+                  ))}
+                </div>
+              ) : null;
+            })()}
             {day.stay && (
               <p className="plan-stay">
                 🛏 {day.stay.name}
@@ -1813,12 +1957,51 @@ function PlanCard({
           </div>
         ))}
       </div>
+      {/* #6 Transport stepper — door to door, a clearly-labeled estimate. */}
+      {plan.transport && plan.transport.legs.length > 0 && (
+        <div className="plan-transport">
+          <p className="plan-transport-head">
+            🚌 Getting there <span className="est-tag">estimate</span>
+            {plan.transport.totalHours != null && (
+              <span className="tx-total"> · ~{plan.transport.totalHours}h</span>
+            )}
+            {plan.transport.perPersonInr != null && (
+              <span className="tx-total"> · {inr(plan.transport.perPersonInr)}/person</span>
+            )}
+          </p>
+          <ol className="tx-steps">
+            {plan.transport.legs.map((leg, i) => (
+              <li key={i}>
+                <span className="tx-mode">{leg.mode}</span>
+                <span className="tx-route">
+                  {leg.from} → {leg.to}
+                </span>
+                <span className="tx-meta">
+                  {leg.hours != null ? `~${leg.hours}h` : ""}
+                  {leg.inr != null ? ` · ${inr(leg.inr)}` : ""}
+                </span>
+              </li>
+            ))}
+          </ol>
+        </div>
+      )}
       {plan.cost.breakdown && (
         <div className="plan-breakdown">
           <span>Transport {inr(plan.cost.breakdown.transportInr)}</span>
           <span>Stay {inr(plan.cost.breakdown.stayInr)}</span>
           <span>Activities {inr(plan.cost.breakdown.activitiesInr)}</span>
           <span>Food {inr(plan.cost.breakdown.foodInr)}</span>
+        </div>
+      )}
+      {/* #10 Per-meal food split (daily, per person). */}
+      {plan.cost.foodBreakdown && (
+        <div className="plan-food-split">
+          <span className="fs-label">🍽 Food/day</span>
+          <span>Breakfast {inr(plan.cost.foodBreakdown.breakfastInr)}</span>
+          <span>Lunch {inr(plan.cost.foodBreakdown.lunchInr)}</span>
+          <span>Dinner {inr(plan.cost.foodBreakdown.dinnerInr)}</span>
+          <span>Snacks {inr(plan.cost.foodBreakdown.snacksInr)}</span>
+          <span className="fs-total">≈ {inr(plan.cost.foodBreakdown.dailyTotalInr)}</span>
         </div>
       )}
       <p className="plan-totals">
@@ -1834,11 +2017,20 @@ function PlanCard({
           {plan.cost.live ? "High confidence" : "Medium confidence"}
         </span>
       </p>
+      {plan.cost.assumptions.length > 0 && (
+        <p className="plan-meta muted">
+          Pricing assumes: {[...new Set(plan.cost.assumptions)].join(" · ")}
+        </p>
+      )}
       {plan.preferenceCoverage.length > 0 && (
         <p className="plan-meta">Matches: {plan.preferenceCoverage.join(", ")}</p>
       )}
       {plan.tradeoffs.length > 0 && (
-        <p className="plan-meta muted">Trade-offs: {plan.tradeoffs.join("; ")}</p>
+        <ul className="plan-tradeoffs">
+          {plan.tradeoffs.map((t, i) => (
+            <li key={i}>⚠ {t}</li>
+          ))}
+        </ul>
       )}
       <footer>
         <button type="button" onClick={onVote} disabled={!canVote}>

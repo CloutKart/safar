@@ -434,6 +434,83 @@ a.stop-name:hover { text-decoration: underline; }
 .conf-med { background: rgba(230,200,120,.14); color: #e7d27a; }
 .plan-meta { margin: 0; font-size: 11.5px; color: var(--r-muted); }
 .plan-meta.muted { color: var(--r-faint); }
+
+/* ── V1.2 storyboard ───────────────────────────────────────────────────── */
+.est-tag { font-size: 8.5px; letter-spacing: .04em; text-transform: uppercase; padding: 0 5px; margin-left: 5px; border-radius: 99px; background: rgba(255,255,255,.06); color: var(--r-faint); vertical-align: middle; }
+.cap { text-transform: capitalize; }
+
+/* #18 Summary vitals card */
+.plan-vitals { display: grid; grid-template-columns: repeat(auto-fit, minmax(72px, 1fr)); gap: 6px; margin: 2px 0; padding: 9px; border: 1px solid var(--r-line); border-radius: 12px; background: var(--r-surface); }
+.plan-vitals span { display: flex; flex-direction: column; gap: 1px; align-items: center; text-align: center; }
+.plan-vitals b { font-size: 14px; color: var(--r-ink); }
+.plan-vitals small { font-size: 9px; text-transform: uppercase; letter-spacing: .03em; color: var(--r-faint); }
+.plan-bestfor { margin: 0; font-size: 11.5px; color: var(--r-accent); }
+
+/* #7 weather + carry */
+.plan-weather-block { display: flex; flex-direction: column; gap: 2px; }
+.plan-carry { margin: 0; font-size: 11px; color: var(--r-muted); }
+
+/* #4 why-reasons checklist */
+.plan-why-list { margin: 2px 0; padding: 0; list-style: none; display: grid; grid-template-columns: 1fr 1fr; gap: 1px 12px; }
+.plan-why-list li { font-size: 11.5px; color: var(--r-ink); line-height: 1.5; }
+
+/* #19 AI reasoning */
+.plan-reasoning { margin: 0; font-size: 11.5px; line-height: 1.55; color: var(--r-muted); padding: 8px 10px; border-left: 2px solid var(--r-accent); background: rgba(255,255,255,.02); border-radius: 0 8px 8px 0; }
+.plan-reasoning-tag { font-weight: 700; color: var(--r-accent); margin-right: 4px; }
+
+/* #16 audience */
+.plan-audience { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.aud-col { display: flex; flex-direction: column; gap: 2px; font-size: 11px; }
+.aud-col p { margin: 0 0 2px; font-size: 10px; text-transform: uppercase; letter-spacing: .03em; color: var(--r-faint); }
+.aud-yes span { color: #8fe3b8; }
+.aud-no span { color: var(--r-faint); }
+
+/* #1 day theme/goal/narrative */
+.day-theme { color: var(--r-accent); font-weight: 600; }
+.day-goal { margin: 0; font-size: 11px; color: var(--r-muted); }
+.day-narrative { margin: 1px 0 2px; font-size: 11.5px; line-height: 1.55; color: var(--r-muted); font-style: italic; }
+
+/* #3 time blocks */
+.stop-time { display: inline-block; min-width: 58px; font-family: var(--font-mono), monospace; font-size: 10px; color: var(--r-accent); margin-right: 2px; }
+
+/* #5 badges */
+.badge-cafe { background: rgba(200,150,90,.16); color: #e0b87a; }
+.badge-food { background: rgba(240,140,110,.14); color: #f0b87a; }
+.badge-market { background: rgba(200,140,230,.14); color: #d09cff; }
+.badge-view { background: rgba(120,200,230,.14); color: #8fd3e8; }
+.badge-must { background: rgba(255,120,90,.16); color: #ff9c7a; }
+
+/* #8 crowd */
+.stop-crowd { display: block; margin-left: 60px; font-size: 10px; color: var(--r-faint); }
+
+/* #9 group moments */
+.day-moments { display: flex; flex-wrap: wrap; gap: 5px; margin: 3px 0 0 2px; }
+.day-moments span { font-size: 10px; padding: 2px 7px; border-radius: 99px; background: rgba(255,255,255,.05); color: var(--r-muted); }
+
+/* #6 transport stepper */
+.plan-transport { border: 1px solid var(--r-line); border-radius: 12px; padding: 9px 11px; background: var(--r-surface); }
+.plan-transport-head { margin: 0 0 6px; font-size: 11.5px; color: var(--r-ink); }
+.tx-total { color: var(--r-muted); }
+.tx-steps { margin: 0; padding-left: 14px; display: flex; flex-direction: column; gap: 5px; }
+.tx-steps li { font-size: 11px; display: flex; flex-wrap: wrap; gap: 4px 8px; align-items: baseline; }
+.tx-mode { color: var(--r-accent); font-weight: 600; }
+.tx-route { color: var(--r-ink); }
+.tx-meta { color: var(--r-faint); font-family: var(--font-mono), monospace; font-size: 10px; }
+
+/* #10 food split */
+.plan-food-split { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.plan-food-split span { padding: 2px 8px; border: 1px solid var(--r-line); border-radius: 99px; font-size: 10px; color: var(--r-muted); }
+.plan-food-split .fs-label { border: none; color: var(--r-ink); padding-left: 0; }
+.plan-food-split .fs-total { background: rgba(69,201,138,.12); color: var(--r-accent); border-color: transparent; }
+
+/* #13 trade-offs */
+.plan-tradeoffs { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 2px; }
+.plan-tradeoffs li { font-size: 11px; color: var(--r-faint); line-height: 1.5; }
+
+/* #17 stars */
+.stars { color: #f0c85a; letter-spacing: 1px; }
+.stars-empty { color: var(--r-line-strong); }
+.cmp-cell.cmp-stars { font-family: inherit; }
 .plan-card footer { display: flex; align-items: center; gap: 10px; margin-top: 2px; }
 .plan-card footer button { padding: 8px 16px; border: 0; border-radius: 10px; background: var(--r-accent); color: #06231a; font-weight: 800; font-size: 13px; cursor: pointer; }
 .plan-card footer button:disabled { background: rgba(255,255,255,.08); color: var(--r-faint); cursor: not-allowed; }

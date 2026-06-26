@@ -262,3 +262,87 @@ describe("deterministic conversation extraction", () => {
     ).not.toContain("shopping");
   });
 });
+
+describe("hardened extraction on a real multi-fact Hinglish message", () => {
+  const MSG =
+    "Hey Safar, hum 5 friends Delhi se trip plan kar rahe hain around the second week of July. 4 days ka trip chahiye with a budget of around ₹12,000-15,000 per person including stay and travel. Goa aur Manali avoid karna hai because we've already been there. We want a good mix of adventure and chill, not just sightseeing all day. Trekking ya waterfalls would be nice, but we also want cafés, good local food and a place where we can just sit and enjoy the views. Nightlife isn't a priority, but if there are some nice local markets or live music cafés that's a bonus. We don't want an overhyped tourist trap; hidden gems are preferred, but do include a few must-visit popular places if they're actually worth it.";
+  const r = extractDeterministically(MSG);
+  const fact = (kind: string) => r.facts.filter((f) => f.kind === kind).map((f) => f.value);
+
+  it("captures origin, budget range, duration and group size", () => {
+    expect(fact("origin")).toEqual(["Delhi"]);
+    expect(fact("budget_min")).toEqual([12000]);
+    expect(fact("budget_max")).toEqual([15000]);
+    expect(fact("duration_days")).toEqual([4]);
+    expect(fact("group_size")).toEqual([5]);
+  });
+
+  it("captures both ruled-out places and invents no destinations", () => {
+    expect(fact("exclude_destination")).toEqual(
+      expect.arrayContaining(["Goa", "Manali"]),
+    );
+    // the verb-regex must NOT emit "Kar Rahe" or "Popular Places"
+    expect(fact("destination")).toEqual([]);
+  });
+
+  it("reads real interests and drops a de-prioritised one", () => {
+    const tags = r.preferences.map((p) => p.tag);
+    expect(tags).toEqual(
+      expect.arrayContaining(["adventure", "trekking", "cafes", "food", "relaxation"]),
+    );
+    // "Nightlife isn't a priority" → neither a want nor a dislike
+    expect(tags).not.toContain("nightlife");
+  });
+});
+
+describe("hardened extraction — targeted regressions", () => {
+  it("ignores Hinglish filler after a planning verb", () => {
+    expect(
+      extractDeterministically("trip plan kar rahe hain").facts.some(
+        (f) => f.kind === "destination",
+      ),
+    ).toBe(false);
+  });
+
+  it("does not treat 'must-visit popular places' as a place", () => {
+    expect(
+      extractDeterministically("include a few must-visit popular places").facts.some(
+        (f) => f.kind === "destination",
+      ),
+    ).toBe(false);
+  });
+
+  it("reads an origin even with words between 'hum' and 'se'", () => {
+    expect(
+      extractDeterministically("hum 5 friends Delhi se aa rahe hain").facts.find(
+        (f) => f.kind === "origin",
+      )?.value,
+    ).toBe("Delhi");
+  });
+
+  it("captures a comma-grouped budget range stated with filler", () => {
+    const r = extractDeterministically("budget of around ₹12,000-15,000 per person");
+    expect(r.facts.find((f) => f.kind === "budget_min")?.value).toBe(12000);
+    expect(r.facts.find((f) => f.kind === "budget_max")?.value).toBe(15000);
+  });
+
+  it("excludes both places in 'X aur Y avoid'", () => {
+    const values = extractDeterministically("Goa aur Manali avoid karna hai")
+      .facts.filter((f) => f.kind === "exclude_destination")
+      .map((f) => f.value);
+    expect(values).toEqual(expect.arrayContaining(["Goa", "Manali"]));
+  });
+
+  it("does not read a year as a budget amount", () => {
+    const r = extractDeterministically("budget around 12000 for July 2026");
+    expect(r.facts.find((f) => f.kind === "budget_max")?.value).toBe(12000);
+    expect(r.facts.find((f) => f.kind === "budget_min")?.value).toBe(12000);
+  });
+
+  it("still treats a hard 'no nightlife' as a dislike", () => {
+    const pref = extractDeterministically("beaches but no nightlife").preferences.find(
+      (p) => p.tag === "nightlife",
+    );
+    expect(pref?.weight).toBe(-1);
+  });
+});
