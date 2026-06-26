@@ -26,6 +26,8 @@ export async function fetchWeather(
   end: string,
   signal?: AbortSignal,
 ): Promise<WeatherSummary | null> {
+  // Keep the test suite hermetic — this reaches the network (Open-Meteo).
+  if (process.env.NODE_ENV === "test") return null;
   const daysOut = (new Date(`${start}T00:00:00Z`).getTime() - Date.now()) / 86_400_000;
   try {
     if (daysOut >= -1 && daysOut <= 15) {

@@ -1739,16 +1739,64 @@ function PlanCard({
             <ul>
               {day.stops.map((stop, index) => (
                 <li key={index} className={`stop stop-${stop.kind}`}>
-                  <span className="stop-name">{stop.name}</span>
+                  {stop.mapsUrl ? (
+                    <a
+                      className="stop-name"
+                      href={stop.mapsUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                    >
+                      {stop.name}
+                    </a>
+                  ) : (
+                    <span className="stop-name">{stop.name}</span>
+                  )}
                   {stop.kind === "hidden-gem" && (
                     <span className="badge badge-hidden">💎 Hidden gem</span>
                   )}
                   {stop.kind === "sight" && (
                     <span className="badge badge-popular">Popular</span>
                   )}
+                  {stop.kind === "trail" && (
+                    <span className="badge badge-trail">
+                      🥾 {stop.trail?.hidden ? "Hidden trail" : "Trail"}
+                    </span>
+                  )}
+                  {stop.rating != null && (
+                    <span className="badge badge-rating">
+                      ★{stop.rating.toFixed(1)}
+                      {stop.reviewCount != null
+                        ? ` · ${stop.reviewCount.toLocaleString("en-IN")}`
+                        : ""}
+                    </span>
+                  )}
                   {stop.note && <span className="stop-note"> — {stop.note}</span>}
+                  {stop.mustTry && (
+                    <span className="stop-dish"> · 🍽 try {stop.mustTry}</span>
+                  )}
+                  {stop.trail && (
+                    <span className="stop-trail-meta">
+                      {[
+                        stop.trail.distanceKm ? `${stop.trail.distanceKm} km` : null,
+                        stop.trail.difficulty,
+                        stop.trail.maxAltitudeM ? `${stop.trail.maxAltitudeM} m` : null,
+                        stop.trail.durationHours ? `~${stop.trail.durationHours} h` : null,
+                        stop.trail.permitRequired ? "permit needed" : null,
+                        stop.trail.guideRecommended ? "guide advised" : null,
+                      ]
+                        .filter(Boolean)
+                        .map((chip, i) => (
+                          <span key={i} className="trail-chip">
+                            {chip}
+                          </span>
+                        ))}
+                    </span>
+                  )}
                   {stop.approxInr != null && (
                     <span className="stop-cost">~{inr(stop.approxInr)}</span>
+                  )}
+                  {stop.reviewSnippet && (
+                    <span className="stop-review">“{stop.reviewSnippet}”</span>
                   )}
                 </li>
               ))}

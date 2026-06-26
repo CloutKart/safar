@@ -392,6 +392,8 @@ a { color: inherit; }
 .badge { font-size: 9.5px; padding: 1px 7px; border-radius: 999px; margin-left: 6px; vertical-align: middle; white-space: nowrap; letter-spacing: .01em; }
 .badge-hidden { background: rgba(120,200,160,.16); color: #8fe3b8; }
 .badge-popular { background: rgba(255,255,255,.07); color: var(--r-muted); }
+.badge-trail { background: rgba(120,170,255,.16); color: #9cc0ff; }
+.badge-rating { background: rgba(240,200,90,.16); color: #f0c85a; font-family: var(--font-mono), monospace; }
 .plan-match { margin-left: 8px; font-size: 10px; font-weight: 600; padding: 1px 7px; border-radius: 999px; background: rgba(69,201,138,.16); color: var(--r-accent); text-transform: none; letter-spacing: 0; }
 .plan-weather { margin: 0; display: inline-flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 600; color: var(--r-ink); }
 .wx-icon { font-size: 13px; }
@@ -414,6 +416,13 @@ a { color: inherit; }
 .stop-name { color: var(--r-ink); }
 .stop-cost { margin-left: 6px; font-family: var(--font-mono), monospace; font-size: 10.5px; color: var(--r-accent); white-space: nowrap; }
 .stop-hidden-gem .stop-name { color: #e7d27a; font-weight: 600; }
+.stop-trail .stop-name { color: #9cc0ff; font-weight: 600; }
+a.stop-name { text-decoration: none; }
+a.stop-name:hover { text-decoration: underline; }
+.stop-dish { color: #f0b87a; font-size: 11px; }
+.stop-trail-meta { display: inline-flex; flex-wrap: wrap; gap: 4px; margin-left: 6px; vertical-align: middle; }
+.trail-chip { font-size: 9.5px; padding: 1px 6px; border-radius: 99px; background: rgba(120,170,255,.1); color: #9cc0ff; white-space: nowrap; }
+.stop-review { display: block; margin: 1px 0 0 2px; font-size: 10.5px; font-style: italic; color: var(--r-faint); line-height: 1.4; }
 .gem { margin-right: 1px; }
 .plan-stay { margin: 3px 0 0; font-size: 11.5px; color: var(--r-muted); }
 .plan-breakdown { display: flex; flex-wrap: wrap; gap: 6px; }

@@ -19,6 +19,45 @@ import {
   type PreferenceFocus,
 } from "@/lib/research/preferences";
 import { planPhotos } from "@/lib/research/photos";
+import {
+  fitsGroup,
+  getTrails,
+  toTrailMeta,
+  trailSeasonSafe,
+  travelBurdenKm,
+  type Trail,
+} from "@/lib/research/trails";
+import { dishesFor, type Dish } from "@/data/dishes";
+import { lookupCoords } from "@/lib/cityCoords";
+import { fetchWeather, type WeatherSummary } from "@/lib/weather";
+
+// Interests that signal a trek-leaning group — drives whether we fetch trails and
+// weight trail depth into the match score.
+const TREK_INTERESTS: InterestTag[] = [
+  "trekking",
+  "adventure",
+  "mountains",
+  "camping",
+  "rafting",
+];
+
+function trekWeight(weights: Map<InterestTag, number>): number {
+  return TREK_INTERESTS.reduce((sum, tag) => sum + Math.max(0, weights.get(tag) ?? 0), 0);
+}
+
+// A 0..1 comfort score from the destination's weather over the trip window. Hot
+// (>34°C), cold (<2°C) or very wet (>70% rain) drag it down; pleasant stays high.
+function weatherComfort(weather: WeatherSummary | null): number | null {
+  if (!weather) return null;
+  let score = 1;
+  if (weather.highC > 38) score -= 0.5;
+  else if (weather.highC > 34) score -= 0.3;
+  if (weather.lowC < 0) score -= 0.35;
+  else if (weather.lowC < 4) score -= 0.15;
+  if (weather.rainPct > 80) score -= 0.4;
+  else if (weather.rainPct > 60) score -= 0.2;
+  return Math.max(0, Math.min(1, score));
+}
 
 function groupWeights(summary: TripSummary): Map<InterestTag, number> {
   const weights = new Map<InterestTag, number>();
@@ -61,6 +100,16 @@ function destinationScore(
       destination.accessCostInr[0];
     if (estimated > budget) score -= 5;
   }
+  // Grounding: real travel burden from where the group actually lives (vs. the
+  // static accessCostInr range). A graded penalty that grows with distance, so a
+  // nearby match is favoured over an equally-good but far-flung one — capped so
+  // it never dominates a strong interest fit.
+  const burden = travelBurdenKm(
+    summary.departureCities,
+    destination.slug,
+    destination.name,
+  );
+  if (burden != null) score -= Math.min(3, burden / 700);
   return score;
 }
 
@@ -75,8 +124,13 @@ function scorePlanMatch(input: {
   likely: number;
   gems: Gem[];
   hasLiveStay: boolean;
+  weather: WeatherSummary | null;
+  // Trails actually placed in the itinerary (post season/level gating), so the
+  // score and the "why" never promise trails the plan doesn't show.
+  trailCount: number;
 }): { matchScore: number; whyRecommended: string } {
-  const { destination, summary, weights, matchedTags, days, likely, gems, hasLiveStay } = input;
+  const { destination, summary, weights, matchedTags, days, likely, gems, hasLiveStay, weather, trailCount } =
+    input;
 
   const totalPositive = [...weights.values()]
     .filter((weight) => weight > 0)
@@ -93,7 +147,17 @@ function scorePlanMatch(input: {
   const month = summary.dates.start
     ? new Date(`${summary.dates.start}T00:00:00Z`).getUTCMonth() + 1
     : null;
-  const seasonOk = month ? (destination.idealMonths.includes(month) ? 1 : 0.45) : 0.85;
+  // Grounding: prefer real forecast/climatology comfort over the binary
+  // idealMonths flag; fall back to the catalog month when weather is unavailable.
+  const comfort = weatherComfort(weather);
+  const seasonOk =
+    comfort != null
+      ? comfort
+      : month
+        ? destination.idealMonths.includes(month)
+          ? 1
+          : 0.45
+        : 0.85;
   const feasibility = (durationOk + seasonOk) / 2;
 
   const hiddenCount = gems.filter(isHiddenGem).length;
@@ -102,18 +166,35 @@ function scorePlanMatch(input: {
   const popularQuality = Math.min(1, popularCount / 4);
   const accommodation = hasLiveStay ? 1 : 0.6;
 
-  const matchScore = Math.round(
-    100 *
-      (0.3 * preference +
-        0.2 * budgetFit +
-        0.15 * feasibility +
-        0.15 * hiddenQuality +
-        0.1 * popularQuality +
-        0.1 * accommodation),
+  // Trek-aware boost: for a trek-leaning group, a destination with real, usable
+  // trails (matched to the group's level) is a materially better pick than one
+  // merely tagged "trekking" — so trail depth nudges the score up (capped at +8).
+  const trek = trekWeight(weights);
+  const trailBonus = trek > 0 ? Math.min(8, trailCount * 2) : 0;
+
+  const matchScore = Math.min(
+    100,
+    Math.round(
+      100 *
+        (0.3 * preference +
+          0.2 * budgetFit +
+          0.15 * feasibility +
+          0.15 * hiddenQuality +
+          0.1 * popularQuality +
+          0.1 * accommodation),
+    ) + trailBonus,
   );
 
   const parts: string[] = [];
   if (matchedTags.length) parts.push(`strong fit for ${matchedTags.slice(0, 3).join(", ")}`);
+  if (trek > 0 && trailCount > 0) {
+    parts.push(`${trailCount} trail${trailCount > 1 ? "s" : ""} matched to your level`);
+  }
+  if (weather) {
+    parts.push(
+      `${weather.lowC}–${weather.highC}°C${weather.rainPct >= 60 ? `, ${weather.rainPct}% rain` : ""}${weather.typical ? " (typical)" : ""}`,
+    );
+  }
   if (budget) {
     parts.push(
       budgetFit >= 0.95
@@ -210,6 +291,31 @@ function stopCostInr(
   }
 }
 
+// Only absolute http(s) URLs are valid for the schema's `.url()` stop fields.
+// Some sources (e.g. Atlas Obscura) can yield a relative path; coercing those to
+// null here keeps one bad link from throwing and nuking the whole plan.
+const httpUrl = (value: string | null | undefined): string | null =>
+  value && /^https?:\/\//.test(value) ? value : null;
+
+// Build a stop with all optional verification/dish/trail fields defaulted to
+// null, so call sites only specify what they have.
+function stop(
+  partial: Partial<ItineraryStop> & Pick<ItineraryStop, "name">,
+): ItineraryStop {
+  return {
+    kind: "sight",
+    note: "",
+    approxInr: null,
+    rating: null,
+    reviewCount: null,
+    reviewSnippet: null,
+    mapsUrl: null,
+    mustTry: null,
+    trail: null,
+    ...partial,
+  };
+}
+
 // Big-ticket experiences (treks, rafting, dives) are priced as activities;
 // everything else from the catalog highlights is a low-cost sightseeing entry.
 const ACTIVITY_NAME = /trek|trail|raft|kayak|camp|dive|safari|cruise|surf|climb|paraglid|snorkel/i;
@@ -240,22 +346,19 @@ function fallbackItinerary(
         const kind: ItineraryStop["kind"] = ACTIVITY_NAME.test(name)
           ? "activity"
           : "sight";
-        return {
-          name,
-          kind,
-          note: "",
-          approxInr: stopCostInr(kind, destination),
-        };
+        return stop({ name, kind, approxInr: stopCostInr(kind, destination) });
       });
     const foodName = foodSpots.length
       ? foodSpots[index % foodSpots.length]
       : null;
-    stops.push({
-      name: foodName ?? "Local café or food stop",
-      kind: "food",
-      note: foodName ? "well-rated local eatery" : "",
-      approxInr: stopCostInr("food", destination),
-    });
+    stops.push(
+      stop({
+        name: foodName ?? "Local café or food stop",
+        kind: "food",
+        note: foodName ? "well-rated local eatery" : "",
+        approxInr: stopCostInr("food", destination),
+      }),
+    );
     return {
       day: index + 1,
       title:
@@ -311,7 +414,7 @@ function injectGems(
       ...day,
       stops: [
         ...day.stops,
-        {
+        stop({
           name: gem.name,
           kind: kind as ItineraryStop["kind"],
           note:
@@ -328,16 +431,174 @@ function injectGems(
             : isShopping
               ? stopCostInr("sight", destination)
               : null,
-        },
+          // A.1 — surface the verification we already fetched.
+          rating: gem.rating,
+          reviewCount: gem.reviewCount,
+          reviewSnippet: gem.reviewSnippet ?? null,
+          mapsUrl: httpUrl(gem.mapsUrl),
+        }),
       ],
     };
   });
 }
 
+// Backfill verification (rating, reviews, maps link) onto any stop whose name
+// matches a real gem we already fetched — including LLM-written stops, which
+// don't carry this data. Substring-aware so "Sunset at Tungnath" matches the
+// "Tungnath" gem. Only fills empty fields, never overwrites.
+function enrichStopReviews(
+  itinerary: GeneratedPlan["itinerary"],
+  gems: Gem[],
+): GeneratedPlan["itinerary"] {
+  const indexed = gems
+    .map((gem) => ({ key: gemKey(gem.name), gem }))
+    .filter((entry) => entry.key.length >= 4);
+  // Match a stop to a gem by name. Exact key wins; a substring match is only
+  // trusted when the shared key is long enough (≥5 chars) to be specific, so a
+  // generic "Café" stop never inherits an unrelated café's rating.
+  const matchGem = (name: string): Gem | null => {
+    const key = gemKey(name);
+    if (key.length < 4) return null;
+    const exact = indexed.find((entry) => entry.key === key);
+    if (exact) return exact.gem;
+    const loose = indexed.find(
+      (entry) =>
+        (key.includes(entry.key) && entry.key.length >= 5) ||
+        (entry.key.includes(key) && key.length >= 5),
+    );
+    return loose?.gem ?? null;
+  };
+  return itinerary.map((day) => ({
+    ...day,
+    stops: day.stops.map((stop) => {
+      if (stop.rating != null || stop.reviewSnippet) return stop;
+      const gem = matchGem(stop.name);
+      if (!gem) return stop;
+      return {
+        ...stop,
+        rating: stop.rating ?? gem.rating,
+        reviewCount: stop.reviewCount ?? gem.reviewCount,
+        mapsUrl: stop.mapsUrl ?? httpUrl(gem.mapsUrl),
+        reviewSnippet: stop.reviewSnippet ?? gem.reviewSnippet ?? null,
+      };
+    }),
+  }));
+}
+
+// Set a signature dish to order on food stops (Part B). The stop already names
+// the eatery (from the gem pool / LLM); this pairs it with a real local dish to
+// try, cycling the destination's signature dishes so no food stop is generic.
+function attachDishes(
+  itinerary: GeneratedPlan["itinerary"],
+  dishes: Dish[],
+): GeneratedPlan["itinerary"] {
+  if (dishes.length === 0) return itinerary;
+  let cursor = 0;
+  return itinerary.map((day) => ({
+    ...day,
+    stops: day.stops.map((stop) => {
+      if (stop.kind !== "food" || stop.mustTry) return stop;
+      const dish = dishes[cursor % dishes.length];
+      cursor += 1;
+      return { ...stop, mustTry: dish.name };
+    }),
+  }));
+}
+
+// Inject real trails as "trail" stops (Part C). Filters to the group's level
+// (fitsGroup) and applies a season-safety gate — out of the destination's ideal
+// months, high-altitude (≥3500 m) or expert trails are dropped (snow/AMS risk).
+// Floats hidden trails, adds at most one per day with room, and carries full
+// metadata so the UI can show distance/difficulty/permit chips.
+function injectTrails(
+  itinerary: GeneratedPlan["itinerary"],
+  trails: Trail[],
+  destination: CuratedDestination,
+  angle: GeneratedPlan["angle"],
+  month: number | null,
+): GeneratedPlan["itinerary"] {
+  if (trails.length === 0) return itinerary;
+  const usable = trails
+    .filter((trail) => fitsGroup(trail, angle))
+    .filter((trail) => trailSeasonSafe(trail, destination.idealMonths, month))
+    .filter(
+      (trail) =>
+        trail.bestMonths.length === 0 || month == null || trail.bestMonths.includes(month),
+    );
+  if (usable.length === 0) return itinerary;
+
+  // Does a trail name refer to the same place an existing stop already names?
+  const sameAs = (trail: Trail, stopName: string): boolean => {
+    const tk = gemKey(trail.name);
+    const sk = gemKey(stopName);
+    if (tk.length < 3 || sk.length < 3) return false;
+    return tk === sk || tk.includes(sk) || sk.includes(tk);
+  };
+
+  const claimed = new Set<Trail>();
+  // Pass 1: match each stop the LLM wrote — whether it called the trek an
+  // "activity" or already a metadata-less "trail" — to a real trail, and enrich
+  // it in place. Claiming the match prevents Pass 2 from injecting a duplicate.
+  let next = itinerary.map((day) => ({
+    ...day,
+    stops: day.stops.map((s) => {
+      const match = usable.find((t) => !claimed.has(t) && sameAs(t, s.name));
+      if (!match) return s;
+      claimed.add(match);
+      if (s.kind === "trail" && s.trail) return s; // already rich — just dedup
+      const meta = toTrailMeta(match);
+      return {
+        ...s,
+        kind: "trail" as const,
+        note: s.note || match.blurb || "trekking route",
+        approxInr: s.approxInr ?? stopCostInr("activity", destination),
+        mapsUrl: s.mapsUrl ?? httpUrl(meta.routeUrl),
+        trail: meta,
+      };
+    }),
+  }));
+
+  // Pass 2: inject the remaining trails (one per day with room) so even a
+  // template plan, or one the LLM under-filled, surfaces real trails.
+  const remaining = usable.filter((t) => !claimed.has(t));
+  let cursor = 0;
+  next = next.map((day) => {
+    if (day.stops.length >= 5 || cursor >= remaining.length) return day;
+    const trail = remaining[cursor];
+    cursor += 1;
+    const meta = toTrailMeta(trail);
+    return {
+      ...day,
+      stops: [
+        ...day.stops,
+        stop({
+          name: trail.name,
+          kind: "trail",
+          note: trail.blurb || "trekking route",
+          approxInr: stopCostInr("activity", destination),
+          mapsUrl: httpUrl(meta.routeUrl),
+          trail: meta,
+        }),
+      ],
+    };
+  });
+
+  // Pass 3: any "trail" stop the LLM invented that we couldn't back with real
+  // data becomes a plain "activity" — never show an empty trail card.
+  return next.map((day) => ({
+    ...day,
+    stops: day.stops.map((s) =>
+      s.kind === "trail" && !s.trail ? { ...s, kind: "activity" as const } : s,
+    ),
+  }));
+}
+
 const PLANNER_SYSTEM = `You are Safar, a sharp India travel planner who knows places beyond the obvious tourist list. You write one concrete plan for ONE destination for a friend group.
 
 Rules:
-- Output STRICT JSON only, matching: {"summary": string, "itinerary": [{"day": number, "title": string, "stops": [{"name": string, "kind": "sight"|"hidden-gem"|"activity"|"food"|"transport", "note": string, "approxInr": number|null}], "stay": {"name": string, "area": string, "approxInrPerNight": number|null} | null}]}.
+- Output STRICT JSON only, matching: {"summary": string, "itinerary": [{"day": number, "title": string, "stops": [{"name": string, "kind": "sight"|"hidden-gem"|"activity"|"food"|"transport"|"trail", "note": string, "approxInr": number|null, "mustTry": string|null}], "stay": {"name": string, "area": string, "approxInrPerNight": number|null} | null}]}.
+- You are given "localTrails" — real trekking routes (with distance/difficulty/altitude). When the group wants trekking/adventure, build days around a NAMED trail from this list as a "trail" stop, budgeting a half/full day for it; for high-altitude routes add an acclimatisation day and an early-start note. Never invent a generic "scenic trek".
+- You are given "signatureDishes" — real local dishes. On every "food" stop set "mustTry" to a specific dish the named eatery is known for (prefer these); never leave a food stop without a real dish.
 - Produce EXACTLY the requested number of days.
 - Shape it as a JOURNEY with a realistic arc, not a checklist:
   - Day 1 (arrival): keep it LIGHT — 2-3 easy stops near the stay (check-in, a relaxed local walk, an unhurried dinner). Account for travel fatigue; no long excursions.
@@ -367,6 +628,8 @@ async function enrichItinerary(input: {
   research: Array<{ title: string; publisher: string; url: string }>;
   gems: Gem[];
   preferenceFocus: PreferenceFocus[];
+  trails: Trail[];
+  dishes: Dish[];
 }): Promise<z.infer<typeof PlanDetailSchema> | null> {
   const context = {
     angle: input.angle,
@@ -374,6 +637,18 @@ async function enrichItinerary(input: {
     localGems: input.gems
       .slice(0, 8)
       .map((gem) => ({ name: gem.name, type: gem.type, note: gem.blurb })),
+    localTrails: input.trails.slice(0, 6).map((trail) => ({
+      name: trail.name,
+      difficulty: trail.difficulty,
+      distanceKm: trail.distanceKm,
+      maxAltitudeM: trail.maxAltitudeM,
+      permitRequired: trail.permitRequired,
+      note: trail.blurb,
+    })),
+    signatureDishes: input.dishes.slice(0, 8).map((dish) => ({
+      name: dish.name,
+      note: dish.description,
+    })),
     destination: {
       name: input.destination.name,
       state: input.destination.state,
@@ -541,6 +816,36 @@ export async function generatePlans(
         (weights.get("shopping") ?? 0) > 0
           ? [...baseGems, ...(await mallsFor(destination.name).catch(() => []))]
           : baseGems;
+
+      const month = summary.dates.start
+        ? new Date(`${summary.dates.start}T00:00:00Z`).getUTCMonth() + 1
+        : null;
+      const wantsTrek = trekWeight(weights) > 0;
+      const destCoords =
+        lookupCoords(destination.slug) ?? lookupCoords(destination.name);
+      // Trails only for trek-leaning groups (so a café trip isn't padded with
+      // treks); weather for the actual window grounds season fit/safety; dishes
+      // come from the curated seed.
+      const [trails, weather] = await Promise.all([
+        wantsTrek
+          ? getTrails(destination.slug, destination.name, destCoords).catch(
+              () => [] as Trail[],
+            )
+          : Promise.resolve([] as Trail[]),
+        destCoords && summary.dates.start
+          ? fetchWeather(
+              destCoords,
+              summary.dates.start,
+              summary.dates.end ?? summary.dates.start,
+            ).catch(() => null)
+          : Promise.resolve(null),
+      ]);
+      const dishes = dishesFor({
+        slug: destination.slug,
+        name: destination.name,
+        state: destination.state,
+      });
+
       const research = searchResults.slice(0, 5).map((result) => ({
         title: result.title,
         publisher: result.publisher,
@@ -578,6 +883,8 @@ export async function generatePlans(
           research,
           gems,
           preferenceFocus,
+          trails,
+          dishes,
         }),
         planPhotos(destination.name, gems).catch(() => []),
       ]);
@@ -600,12 +907,26 @@ export async function generatePlans(
           : baseItinerary;
       // Guarantee real, verified hidden gems appear even without an LLM, and
       // float the ones that match the group's interests to the front.
-      const itinerary = injectGems(
+      const withGems = injectGems(
         withStay,
         gems,
         destination,
         preferredGemNames(preferenceFocus),
       );
+      // Layer in real trails (trek groups), a signature dish per food stop, and
+      // backfill ratings/reviews onto every stop that matches a real place.
+      const withTrails = wantsTrek
+        ? injectTrails(withGems, trails, destination, angle, month)
+        : withGems;
+      const itinerary = enrichStopReviews(
+        attachDishes(withTrails, dishes),
+        gems,
+      );
+      // The trails actually placed in the plan (post level/season gating) drive
+      // both the score and the safety tradeoffs, so they stay consistent.
+      const usedTrails = itinerary
+        .flatMap((day) => day.stops)
+        .filter((stop) => stop.kind === "trail");
       const planSummary =
         detail?.summary ||
         `${days} days built around ${matchedTags.slice(0, 4).join(", ") || destination.tags.slice(0, 4).join(", ")} without breaking the group’s stated hard constraints.`;
@@ -618,7 +939,24 @@ export async function generatePlans(
         likely,
         gems,
         hasLiveStay: Boolean(stayQuote?.title),
+        weather,
+        trailCount: usedTrails.length,
       });
+      // Surface trek safety as explicit tradeoffs: permits, guide need, and an
+      // off-season warning grounded in the actual forecast.
+      const trekTradeoffs: string[] = [];
+      if (usedTrails.some((stop) => stop.trail?.permitRequired)) {
+        trekTradeoffs.push("Some trails need a forest/area permit — arrange in advance.");
+      }
+      if (usedTrails.some((stop) => stop.trail?.guideRecommended)) {
+        trekTradeoffs.push("High-altitude trails: a local guide and acclimatisation day are advised.");
+      }
+      if (weather && (weather.highC > 36 || weather.lowC < 0 || weather.rainPct > 70)) {
+        trekTradeoffs.push(
+          `Weather for your dates looks tough (${weather.lowC}–${weather.highC}°C, ${weather.rainPct}% rain) — pack accordingly.`,
+        );
+      }
+      const tradeoffs = [...destination.cautions, ...trekTradeoffs];
 
       const retrievedAt = new Date().toISOString();
       return GeneratedPlanSchema.parse({
@@ -632,7 +970,7 @@ export async function generatePlans(
         angle,
         summary: planSummary,
         preferenceCoverage: matchedTags.slice(0, 6),
-        tradeoffs: destination.cautions,
+        tradeoffs,
         itinerary,
         sources: [
           {

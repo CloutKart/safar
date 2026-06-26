@@ -99,14 +99,45 @@ export const TripSummarySchema = z.object({
 });
 export type TripSummary = z.infer<typeof TripSummarySchema>;
 
+export const TrailDifficultySchema = z.enum(["easy", "moderate", "hard", "expert"]);
+export type TrailDifficulty = z.infer<typeof TrailDifficultySchema>;
+
+// Trekking metadata trekkers actually decide on, attached to a "trail" stop.
+export const TrailMetaSchema = z.object({
+  distanceKm: z.number().positive().nullable().default(null),
+  elevationGainM: z.number().nonnegative().nullable().default(null),
+  maxAltitudeM: z.number().nonnegative().nullable().default(null),
+  difficulty: TrailDifficultySchema.nullable().default(null),
+  durationHours: z.number().positive().nullable().default(null),
+  trailhead: z.string().nullable().default(null),
+  bestMonths: z.array(z.number().int().min(1).max(12)).default([]),
+  permitRequired: z.boolean().default(false),
+  guideRecommended: z.boolean().default(false),
+  routeType: z.enum(["loop", "out-and-back", "point-to-point"]).nullable().default(null),
+  routeUrl: z.string().url().nullable().default(null),
+  // true when this is a low-traffic / community-recommended offbeat trail.
+  hidden: z.boolean().default(false),
+});
+export type TrailMeta = z.infer<typeof TrailMetaSchema>;
+
 export const ItineraryStopSchema = z.object({
   name: z.string(),
   kind: z
-    .enum(["sight", "hidden-gem", "activity", "food", "transport", "stay"])
+    .enum(["sight", "hidden-gem", "activity", "food", "transport", "stay", "trail"])
     .default("sight"),
   note: z.string().default(""),
   // Per-person estimate for this stop in INR (null when free / already counted).
   approxInr: z.number().nonnegative().nullable().default(null),
+  // Verification surfaced from the gem in hand (Google Places etc.) so the plan
+  // the group sees looks credible. All optional — null when the source had none.
+  rating: z.number().min(0).max(5).nullable().default(null),
+  reviewCount: z.number().nonnegative().nullable().default(null),
+  reviewSnippet: z.string().nullable().default(null),
+  mapsUrl: z.string().url().nullable().default(null),
+  // The signature dish to order at a food stop (Part B), e.g. "galouti kebab".
+  mustTry: z.string().nullable().default(null),
+  // Trekking metadata when kind === "trail" (Part C). Null for non-trail stops.
+  trail: TrailMetaSchema.nullable().default(null),
 });
 export type ItineraryStop = z.infer<typeof ItineraryStopSchema>;
 

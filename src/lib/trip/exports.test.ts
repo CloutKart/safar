@@ -8,7 +8,18 @@ import {
 } from "@/lib/trip/exports";
 
 function stop(name: string, kind: ItineraryStop["kind"] = "sight"): ItineraryStop {
-  return { name, kind, note: "", approxInr: null };
+  return {
+    name,
+    kind,
+    note: "",
+    approxInr: null,
+    rating: null,
+    reviewCount: null,
+    reviewSnippet: null,
+    mapsUrl: null,
+    mustTry: null,
+    trail: null,
+  };
 }
 
 function plan(

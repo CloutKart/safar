@@ -31,6 +31,8 @@ export interface Gem {
   lng: number | null;
   // Google Places photo resource name (resolved to an image URL at plan time).
   photoRef: string | null;
+  // One real review line, surfaced into the plan so a stop reads credible.
+  reviewSnippet?: string | null;
 }
 
 const GEM_UA = "Safar/1.0 (group trip planner)";
@@ -57,7 +59,24 @@ function normalizeType(value: string): GemType {
 
 // ── Google Places (New) ──────────────────────────────────────────────────────
 const PLACES_FIELDS =
-  "places.displayName,places.rating,places.userRatingCount,places.types,places.editorialSummary,places.googleMapsUri,places.location,places.formattedAddress,places.photos";
+  "places.displayName,places.rating,places.userRatingCount,places.types,places.editorialSummary,places.googleMapsUri,places.location,places.formattedAddress,places.photos,places.reviews";
+
+// Pull the most useful one-line review text from a Places result: the first
+// review that's a substantial sentence, trimmed for display.
+function pickReviewSnippet(place: Record<string, unknown>): string | null {
+  const reviews = place.reviews as
+    | Array<{ text?: { text?: string }; originalText?: { text?: string } }>
+    | undefined;
+  if (!reviews?.length) return null;
+  for (const review of reviews) {
+    const text = (review.text?.text ?? review.originalText?.text ?? "").trim();
+    if (text.length >= 30) {
+      const oneLine = text.replace(/\s+/g, " ");
+      return oneLine.length > 160 ? `${oneLine.slice(0, 157)}…` : oneLine;
+    }
+  }
+  return null;
+}
 
 // Real "places to visit", not vendors. Services/lodging are dropped; a place
 // must have an attraction (or food) type to count.
@@ -159,6 +178,7 @@ async function fromPlaces(city: string): Promise<Gem[]> {
         lng: location?.longitude ?? null,
         photoRef:
           (place.photos as Array<{ name?: string }> | undefined)?.[0]?.name ?? null,
+        reviewSnippet: pickReviewSnippet(place),
       });
     }
   }
@@ -486,6 +506,7 @@ function mergeGems(lists: Gem[][]): Gem[] {
       existing.area ??= gem.area;
       existing.lat ??= gem.lat;
       existing.lng ??= gem.lng;
+      existing.reviewSnippet ??= gem.reviewSnippet;
       existing.blurb = existing.blurb || gem.blurb;
       if (existing.type === "quirky" && gem.type !== "quirky") existing.type = gem.type;
     } else {
