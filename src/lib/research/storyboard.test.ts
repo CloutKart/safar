@@ -4,12 +4,16 @@ import type { CuratedDestination } from "@/data/destinations";
 import type { Trail } from "@/lib/research/trails";
 import {
   audience,
+  buildConfidence,
   buildDimensions,
   buildTransport,
   buildWhyReasons,
+  companionNoteFallback,
   difficultyAndPace,
   foodSplit,
   storyboardItinerary,
+  taglineFallback,
+  vibeBreakdown,
 } from "@/lib/research/storyboard";
 
 function stop(partial: Partial<ItineraryStop> & Pick<ItineraryStop, "name">): ItineraryStop {
@@ -40,6 +44,9 @@ function day(d: number, stops: ItineraryStop[]): ItineraryDay {
     theme: "",
     goal: "",
     narrative: "",
+    moodEmoji: "",
+    energy: 0,
+    walkingKm: null,
     moments: { photoSpot: null, sunset: null, dish: null, cafe: null, experience: null },
   };
 }
@@ -94,6 +101,64 @@ describe("storyboardItinerary", () => {
   it("fills group moments from the day's stops", () => {
     expect(itin[1].moments.experience).toBe("Jalori Pass trek");
     expect(itin[1].moments.photoSpot).toBeTruthy();
+  });
+
+  it("gives each day a mood emoji, energy and walking estimate (#8)", () => {
+    expect(itin[0].moodEmoji).toBeTruthy();
+    expect(itin[1].moodEmoji).toBe("🥾"); // adventure day
+    // the adventure day should read more energetic than the arrival day
+    expect(itin[1].energy).toBeGreaterThan(itin[0].energy);
+    expect(itin[1].energy).toBeGreaterThanOrEqual(1);
+    expect(itin[1].energy).toBeLessThanOrEqual(5);
+  });
+});
+
+describe("vibeBreakdown / tagline / companionNote / confidence", () => {
+  const weights = new Map<InterestTag, number>([
+    ["relaxation", 3],
+    ["cafes", 2],
+    ["trekking", 1.5],
+    ["food", 1],
+  ]);
+  const itin = storyboardItinerary(
+    [
+      day(1, [stop({ name: "Café" , kind: "food" })]),
+      day(2, [stop({ name: "Trek", kind: "trail" })]),
+    ],
+    [],
+  );
+
+  it("returns a vibe mix that sums to exactly 100", () => {
+    const mix = vibeBreakdown(
+      ["relaxation", "cafes", "trekking", "food"] as InterestTag[],
+      weights,
+      itin,
+    );
+    expect(mix.length).toBeGreaterThan(0);
+    expect(mix.reduce((s, v) => s + v.pct, 0)).toBe(100);
+    expect(mix[0].tag).toBe("Relaxation"); // highest-weighted bucket leads
+  });
+
+  it("builds a non-empty tagline and a pacing-aware companion note", () => {
+    expect(taglineFallback(["cafes", "mountains"] as InterestTag[], destination)).toBeTruthy();
+    const note = companionNoteFallback(itin);
+    expect(note.toLowerCase()).toMatch(/day \d|rushed|breathe/);
+  });
+
+  it("scores confidence sub-metrics within range", () => {
+    const c = buildConfidence({
+      summary: { budget: { maxInr: 15000 } } as unknown as TripSummary,
+      likelyInr: 13000,
+      weather: { lowC: 16, highC: 24, rainPct: 20, typical: false },
+      gems: [],
+      travelHours: 8,
+      itinerary: itin,
+    });
+    expect(c.budgetFit).toBeGreaterThanOrEqual(0);
+    expect(c.budgetFit).toBeLessThanOrEqual(100);
+    expect(c.weatherScore).toBeGreaterThanOrEqual(0);
+    expect(c.weatherScore).toBeLessThanOrEqual(10);
+    expect(["low", "medium", "high"]).toContain(c.travelFatigue);
   });
 });
 

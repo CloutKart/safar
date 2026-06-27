@@ -4,21 +4,43 @@ import { isHiddenGem, type Gem } from "@/lib/research/gems";
 export interface DestinationImage {
   type: "hero" | "popular" | "hidden_gem" | "culture";
   url: string;
+  // V1.3 themed label ("Morning", "Waterfall", "Café", "Sunset"…).
+  caption: string;
 }
 
 const PHOTO_UA = "Safar/1.0 (group trip planner)";
 
 // Resolve a Google Places photo resource to a keyless image URL. skipHttpRedirect
-// returns the photoUri as JSON, so the API key never reaches the client.
-async function resolvePlacePhoto(photoRef: string | null): Promise<string | null> {
+// returns the photoUri as JSON, so the API key never reaches the client. `width`
+// is bumped for the hero so the big lead image stays crisp.
+async function resolvePlacePhoto(
+  photoRef: string | null,
+  width = 900,
+): Promise<string | null> {
   if (!photoRef || !env.GOOGLE_PLACES_KEY) return null;
-  const url = `https://places.googleapis.com/v1/${photoRef}/media?maxWidthPx=900&skipHttpRedirect=true&key=${env.GOOGLE_PLACES_KEY}`;
+  const url = `https://places.googleapis.com/v1/${photoRef}/media?maxWidthPx=${width}&skipHttpRedirect=true&key=${env.GOOGLE_PLACES_KEY}`;
   const response = await fetch(url, { signal: AbortSignal.timeout(8000) }).catch(
     () => null,
   );
   if (!response?.ok) return null;
   const data = (await response.json()) as { photoUri?: string };
   return data.photoUri ?? null;
+}
+
+// A short, evocative caption for a gem photo, from its type/name.
+function captionFor(gem: Gem | undefined, fallback: string): string {
+  if (!gem) return fallback;
+  const name = gem.name.toLowerCase();
+  if (/sunset|dusk/.test(name)) return "Sunset";
+  if (/sunrise|dawn|morning/.test(name)) return "Morning";
+  if (/waterfall|fall\b|falls\b/.test(name)) return "Waterfall";
+  if (/caf[eé]|coffee|bakery|roast/.test(name)) return "Café";
+  if (/view|point|vista|cliff|valley|lake/.test(name)) return "The view";
+  if (gem.type === "food") return "Local food";
+  if (gem.type === "viewpoint") return "The view";
+  if (gem.type === "history") return "Heritage";
+  if (gem.type === "nature") return "Nature";
+  return fallback;
 }
 
 // Free fallback: a lead image from Wikipedia for a place/city name.
@@ -55,9 +77,12 @@ export async function planPhotos(
     (gem) => gem !== popularGem && gem !== hiddenGem && gem !== foodGem,
   );
 
-  const [heroWiki, popular, hidden, culture, extra] = await Promise.all([
+  // The hero is the strongest real shot at high res — the best popular sight if
+  // it has a photo, else the destination's Wikipedia lead image. The strip then
+  // shows the OTHER gems (hidden / food / extra), so the hero is never repeated.
+  const [heroWiki, heroPlace, hidden, culture, extra] = await Promise.all([
     wikiImage(destinationName),
-    resolvePlacePhoto(popularGem?.photoRef ?? null),
+    resolvePlacePhoto(popularGem?.photoRef ?? null, 1600),
     resolvePlacePhoto(hiddenGem?.photoRef ?? null),
     resolvePlacePhoto(foodGem?.photoRef ?? null),
     resolvePlacePhoto(extraGem?.photoRef ?? null),
@@ -65,16 +90,19 @@ export async function planPhotos(
 
   const images: DestinationImage[] = [];
   const seen = new Set<string>();
-  const push = (type: DestinationImage["type"], url: string | null) => {
+  const push = (
+    type: DestinationImage["type"],
+    url: string | null,
+    caption: string,
+  ) => {
     if (url && !seen.has(url)) {
       seen.add(url);
-      images.push({ type, url });
+      images.push({ type, url, caption });
     }
   };
-  push("hero", heroWiki ?? extra);
-  push("popular", popular);
-  push("hidden_gem", hidden);
-  push("culture", culture);
-  if (images.length < 4) push("popular", extra);
+  push("hero", heroPlace ?? heroWiki ?? hidden, destinationName);
+  push("hidden_gem", hidden, captionFor(hiddenGem, "Hidden gem"));
+  push("culture", culture, captionFor(foodGem, "Café"));
+  push("popular", extra, captionFor(extraGem, "The view"));
   return images.slice(0, 4);
 }

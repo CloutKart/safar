@@ -1639,6 +1639,12 @@ function PlanWeather({
   }, [slug, name, start, end]);
   if (!wx) return null;
   const icon = wx.rainPct >= 50 ? "🌧️" : wx.rainPct >= 20 ? "🌦️" : "☀️";
+  const month = start
+    ? new Date(`${start}T00:00:00Z`).toLocaleDateString("en-US", {
+        month: "long",
+        timeZone: "UTC",
+      })
+    : null;
   // #7 Carry list — the gear that matters for this itinerary + climate, from the
   // existing packingList util (skip generic essentials, keep the decisive items).
   const carry = packingList(plan)
@@ -1649,6 +1655,7 @@ function PlanWeather({
     <div className="plan-weather-block">
       <p className="plan-weather">
         <span className="wx-icon">{icon}</span>
+        {month ? <b className="wx-month">{month}</b> : null}
         {wx.lowC}–{wx.highC}°C · {wx.rainPct}% rain
         {wx.typical && <span className="wx-typical">typical</span>}
       </p>
@@ -1758,41 +1765,62 @@ function PlanCard({
         <span className="plan-num">{plan.optionNumber}</span>
         <div>
           <h3>{plan.title}</h3>
-          <p>
-            {plan.destinationName}
-            {plan.destinationState ? `, ${plan.destinationState}` : ""} · {plan.angle}
-          </p>
-          <span className="plan-cost-line">
+          {plan.tagline ? (
+            <p className="plan-tagline">{plan.tagline}</p>
+          ) : null}
+          <p className="plan-sub">
+            {plan.destinationState ? `${plan.destinationState} · ` : ""}
             {inr(plan.cost.lowInr)}–{inr(plan.cost.highInr)}
             <small>{plan.cost.live ? "live" : "estimate"}</small>
-          </span>
+          </p>
         </div>
         {plan.matchScore > 0 && <MatchRing score={plan.matchScore} />}
       </header>
-      {plan.destinationImages && plan.destinationImages.length > 0 && (
-        <div className="plan-photos">
-          {[...plan.destinationImages]
-            .sort((a, b) => PHOTO_ARC[a.type] - PHOTO_ARC[b.type])
-            .map((image) => {
-            const alt = `${plan.destinationName} — ${image.type.replace("_", " ")}`;
-            return (
+      {plan.destinationImages.length > 0 &&
+        (() => {
+          const sorted = [...plan.destinationImages].sort(
+            (a, b) => PHOTO_ARC[a.type] - PHOTO_ARC[b.type],
+          );
+          const hero = sorted.find((i) => i.type === "hero") ?? sorted[0];
+          const rest = sorted.filter((i) => i !== hero);
+          const cap = (image: (typeof sorted)[number]) =>
+            image.caption || photoLabel(image.type);
+          return (
+            <div className="plan-gallery">
+              {/* #1 Big "DAMN" hero. */}
               <button
                 type="button"
-                className="plan-photo"
-                key={image.url}
-                onClick={() => onOpenPhoto(image.url, alt)}
-                aria-label={`Enlarge photo: ${alt}`}
+                className="plan-hero"
+                onClick={() => onOpenPhoto(hero.url, `${plan.destinationName} hero`)}
+                aria-label={`Enlarge photo of ${plan.destinationName}`}
               >
                 {/* eslint-disable-next-line @next/next/no-img-element -- external dynamic photo URLs */}
-                <img src={image.url} alt={alt} loading="lazy" />
-                {image.type !== "hero" && (
-                  <span className="plan-photo-tag">{photoLabel(image.type)}</span>
-                )}
+                <img src={hero.url} alt={plan.destinationName} loading="lazy" />
+                <span className="plan-hero-cap">{plan.destinationName}</span>
               </button>
-            );
-          })}
-        </div>
-      )}
+              {rest.length > 0 && (
+                <div className="plan-photos">
+                  {rest.map((image) => {
+                    const alt = `${plan.destinationName} — ${cap(image)}`;
+                    return (
+                      <button
+                        type="button"
+                        className="plan-photo"
+                        key={image.url}
+                        onClick={() => onOpenPhoto(image.url, alt)}
+                        aria-label={`Enlarge photo: ${alt}`}
+                      >
+                        {/* eslint-disable-next-line @next/next/no-img-element -- external dynamic photo URLs */}
+                        <img src={image.url} alt={alt} loading="lazy" />
+                        <span className="plan-photo-tag">{cap(image)}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          );
+        })()}
       {/* #18 Destination summary card — the at-a-glance decision card. */}
       <div className="plan-vitals">
         {plan.matchScore > 0 && (
@@ -1806,6 +1834,14 @@ function PlanCard({
         <span><b className="cap">{plan.pace}</b><small>Pace</small></span>
         <span><b>{hiddenGemCount(plan)}</b><small>Hidden gems</small></span>
       </div>
+      {plan.confidence && (
+        <div className="plan-confidence">
+          <span>💰 Budget <b>{plan.confidence.budgetFit}%</b></span>
+          <span>☀️ Weather <b>{plan.confidence.weatherScore}/10</b></span>
+          <span>🧍 Crowd <b>{plan.confidence.crowdScore}/10</b></span>
+          <span className="cap">😌 Fatigue <b>{plan.confidence.travelFatigue}</b></span>
+        </div>
+      )}
       {plan.perfectFor.length > 0 && (
         <p className="plan-bestfor">🌿 Best for: {plan.perfectFor.join(" · ")}</p>
       )}
@@ -1824,6 +1860,12 @@ function PlanCard({
         </ul>
       )}
       <p className="plan-summary">{plan.summary}</p>
+      {plan.companionNote && (
+        <p className="plan-companion">
+          <span className="plan-companion-avatar">🧭</span>
+          <span>{plan.companionNote}</span>
+        </p>
+      )}
       {plan.reasoning && (
         <p className="plan-reasoning">
           <span className="plan-reasoning-tag">🤔 Why this one</span> {plan.reasoning}
@@ -1849,6 +1891,29 @@ function PlanCard({
           )}
         </div>
       )}
+      {plan.vibeBreakdown.length > 0 && (
+        <div className="plan-vibe">
+          <div className="vibe-bar">
+            {plan.vibeBreakdown.map((v) => (
+              <span
+                key={v.tag}
+                className={`vibe-seg vibe-${v.tag.toLowerCase().split(/[ &]/)[0]}`}
+                style={{ width: `${v.pct}%` }}
+                title={`${v.tag} ${v.pct}%`}
+              />
+            ))}
+          </div>
+          <p className="vibe-legend">
+            This trip is{" "}
+            {plan.vibeBreakdown.map((v, i) => (
+              <span key={v.tag}>
+                {i > 0 ? " · " : ""}
+                <b>{v.pct}%</b> {v.tag}
+              </span>
+            ))}
+          </p>
+        </div>
+      )}
       {plan.itinerary.length > 1 && (
         <button
           type="button"
@@ -1861,10 +1926,26 @@ function PlanCard({
       <div className={`plan-days${timeline ? " timeline" : ""}`}>
         {plan.itinerary.map((day) => (
           <div className="plan-day" key={day.day}>
-            <p className="plan-day-title">
-              <strong>Day {day.day}</strong>
-              {day.theme ? <span className="day-theme"> — {day.theme}</span> : <> · {day.title}</>}
-            </p>
+            <div className="day-mood">
+              <p className="plan-day-title">
+                <strong>Day {day.day}</strong>
+                {day.theme ? (
+                  <span className="day-theme"> {day.moodEmoji} {day.theme}</span>
+                ) : (
+                  <> · {day.title}</>
+                )}
+              </p>
+              <div className="day-mood-meta">
+                {day.energy > 0 && (
+                  <span title="Energy">
+                    Energy <Stars n={day.energy} />
+                  </span>
+                )}
+                {day.walkingKm != null && day.walkingKm > 0 && (
+                  <span title="Walking">🚶 ~{day.walkingKm} km</span>
+                )}
+              </div>
+            </div>
             {day.goal && <p className="day-goal">🎯 {day.goal}</p>}
             {day.narrative && <p className="day-narrative">{day.narrative}</p>}
             <ul>

@@ -32,14 +32,19 @@ import { lookupCoords } from "@/lib/cityCoords";
 import { fetchWeather, type WeatherSummary } from "@/lib/weather";
 import {
   audience,
+  buildConfidence,
   buildDimensions,
   buildTransport,
   buildWhyReasons,
+  companionNoteFallback,
   difficultyAndPace,
   foodSplit,
   narrativeFallback,
   reasoningFallback,
   storyboardItinerary,
+  summaryFallback,
+  taglineFallback,
+  vibeBreakdown,
 } from "@/lib/research/storyboard";
 
 // Interests that signal a trek-leaning group — drives whether we fetch trails and
@@ -338,6 +343,9 @@ const EMPTY_DAY_STORY = {
   theme: "",
   goal: "",
   narrative: "",
+  moodEmoji: "",
+  energy: 0,
+  walkingKm: null,
   moments: {
     photoSpot: null,
     sunset: null,
@@ -625,13 +633,20 @@ function injectTrails(
   }));
 }
 
-const PLANNER_SYSTEM = `You are Safar, a sharp India travel planner who knows places beyond the obvious tourist list. You write one concrete plan for ONE destination for a friend group.
+const PLANNER_SYSTEM = `You are Safar — not a travel website, but the friend in the group who actually KNOWS this place and has planned it for everyone. You write one plan for ONE destination, in a warm, human, first-person voice. Sound like a local friend texting tips, never like an AI brochure.
 
-Rules:
-- Output STRICT JSON only, matching: {"summary": string, "reasoning": string, "itinerary": [{"day": number, "theme": string, "goal": string, "narrative": string, "title": string, "stops": [{"name": string, "kind": "sight"|"hidden-gem"|"activity"|"food"|"transport"|"trail", "note": string, "description": string, "approxInr": number|null, "mustTry": string|null}], "stay": {"name": string, "area": string, "approxInrPerNight": number|null} | null}]}.
-- "reasoning": 1-2 warm sentences on WHY this destination suits THIS group over the alternatives (reference their interests/budget/dates). This is the "AI thinking" the group reads first.
-- Give every day a distinct "theme" (e.g. "Arrival & Slow Evening", "Adventure Day", "Culture & Hidden Gems", "Farewell Morning") and a one-line "goal" — no two days should feel the same. "narrative" is a short, warm 1-2 sentence story of the day ("Today is your adventure day — after breakfast you trek through pine forest to a quiet waterfall…").
-- "description": 1-2 lines per stop on WHY it's worth it / what to expect (e.g. "17th-century wooden temple, one of the least crowded heritage spots in the valley"). "note" stays a 3-5 word tag. Make people excited, stay truthful.
+Voice rules (this matters most):
+- Talk TO the group ("you", "your crew"), as "I" who built this for them. Be warm, specific, a little opinionated.
+- Drop real insider detail and gentle nudges, not generic praise. Good: "Don't rush this one — locals come around 7 AM before the mist lifts, so grab a coffee and head up early." Bad: "Experience the serene beauty of the mountains."
+- NEVER use AI-brochure phrases ("nestled", "experience the", "serene beauty", "hidden paradise", "breathtaking", "rich tapestry", "immerse yourself").
+
+Output STRICT JSON only, matching: {"tagline": string, "summary": string, "companionNote": string, "reasoning": string, "itinerary": [{"day": number, "theme": string, "goal": string, "narrative": string, "title": string, "stops": [{"name": string, "kind": "sight"|"hidden-gem"|"activity"|"food"|"transport"|"trail", "note": string, "description": string, "approxInr": number|null, "mustTry": string|null}], "stay": {"name": string, "area": string, "approxInrPerNight": number|null} | null}]}.
+- "tagline": a short, poetic line under the place name — emotion over description ("Slow cafés, misty mornings & hidden mountain walks"). 3-7 words, no period.
+- "summary": a warm 2-3 sentence hero paragraph painting how the trip FEELS ("Wake up to mist over the hills, spend afternoons café-hopping, watch the sun drop behind quiet valleys…"). Human, never AI-speak.
+- "companionNote": 1-2 first-person sentences on HOW you paced the trip so it never feels rushed ("I made Day 2 the busiest and let Day 3 breathe; your cafés sit after the treks so everyone gets to slow down."). This is the heart of the plan.
+- "reasoning": 1-2 sentences on why THIS place beats the alternatives for this group (interests/budget/dates).
+- Give every day a distinct "theme" (e.g. "Arrival & Slow Evening", "Adventure Day", "Culture & Hidden Gems", "Farewell Morning") and a one-line "goal" — no two days should feel the same. "narrative" is a warm 1-2 sentence story of the day in your voice.
+- "description": 1-2 lines per stop in the local-friend voice, with one real tip (best time, what to order, what to skip). "note" stays a 3-5 word tag. Stay truthful.
 - You are given "localTrails" — real trekking routes (with distance/difficulty/altitude). When the group wants trekking/adventure, build days around a NAMED trail from this list as a "trail" stop, budgeting a half/full day for it; for high-altitude routes add an acclimatisation day and an early-start note. Never invent a generic "scenic trek".
 - You are given "signatureDishes" — real local dishes. On every "food" stop set "mustTry" to a specific dish the named eatery is known for (prefer these); never leave a food stop without a real dish.
 - Produce EXACTLY the requested number of days.
@@ -651,6 +666,8 @@ Rules:
 
 const PlanDetailSchema = z.object({
   summary: z.string(),
+  tagline: z.string().default(""),
+  companionNote: z.string().default(""),
   reasoning: z.string().default(""),
   itinerary: z.array(ItineraryDaySchema).min(1),
 });
@@ -976,9 +993,6 @@ export async function generatePlans(
       const usedTrails = itinerary
         .flatMap((day) => day.stops)
         .filter((stop) => stop.kind === "trail");
-      const planSummary =
-        detail?.summary ||
-        `${days} days built around ${matchedTags.slice(0, 4).join(", ") || destination.tags.slice(0, 4).join(", ")} without breaking the group’s stated hard constraints.`;
       const { matchScore, whyRecommended } = scorePlanMatch({
         destination,
         summary,
@@ -1022,6 +1036,7 @@ export async function generatePlans(
         narrative: day.narrative || narrativeFallback(day),
       }));
       const { difficulty, pace } = difficultyAndPace(storyItinerary, trails);
+      const planSummary = detail?.summary || summaryFallback(days, matchedTags, pace);
       const whyReasons = buildWhyReasons({
         summary,
         destination,
@@ -1044,13 +1059,30 @@ export async function generatePlans(
           alternatives,
           destinationsAnalysed: ranked.length,
         });
+      // V1.3 Trip Companion: poetic tagline, the pacing note, vibe mix, confidence.
+      const tagline = detail?.tagline || taglineFallback(matchedTags, destination);
+      const companionNote =
+        detail?.companionNote || companionNoteFallback(storyItinerary);
+      const vibe = vibeBreakdown(matchedTags, weights, storyItinerary);
+      const confidence = buildConfidence({
+        summary,
+        likelyInr: likely,
+        weather,
+        gems,
+        travelHours,
+        itinerary: storyItinerary,
+      });
 
       const retrievedAt = new Date().toISOString();
       return GeneratedPlanSchema.parse({
         optionNumber: index + 1,
         matchScore,
         whyRecommended,
-        title: `${destination.name}: ${angle === "balanced" ? "the group sweet spot" : angle === "adventurous" ? "go bigger" : "slow down and taste more"}`,
+        title: destination.name,
+        tagline,
+        companionNote,
+        vibeBreakdown: vibe,
+        confidence,
         destinationSlug: destination.slug,
         destinationName: destination.name,
         destinationState: destination.state,

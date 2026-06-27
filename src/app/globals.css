@@ -434,6 +434,51 @@ a.stop-name:hover { text-decoration: underline; }
 .plan-meta { margin: 0; font-size: 11.5px; color: var(--r-muted); }
 .plan-meta.muted { color: var(--r-faint); }
 
+/* ── V1.3 Trip Companion ───────────────────────────────────────────────── */
+/* #2 tagline + subtitle */
+.plan-tagline { margin: 1px 0 0; font-size: 13px; font-style: italic; color: var(--r-accent); line-height: 1.35; }
+.plan-sub { margin: 2px 0 0; font-size: 11px; color: var(--r-faint); display: flex; gap: 5px; align-items: baseline; }
+.plan-sub small { font-size: 9px; padding: 0 5px; border-radius: 99px; background: rgba(255,255,255,.06); }
+
+/* #1 big hero + captioned strip */
+.plan-gallery { display: flex; flex-direction: column; gap: 4px; }
+.plan-hero { position: relative; width: 100%; aspect-ratio: 16 / 9; border: 0; padding: 0; overflow: hidden; border-radius: 14px; background: rgba(255,255,255,.04); cursor: zoom-in; }
+.plan-hero img { width: 100%; height: 100%; object-fit: cover; display: block; transition: transform .4s ease; }
+@media (hover: hover) { .plan-hero:hover img { transform: scale(1.04); } }
+.plan-hero-cap { position: absolute; left: 12px; bottom: 10px; font-size: 18px; font-weight: 700; color: #fff; text-shadow: 0 2px 14px rgba(0,0,0,.7); letter-spacing: .01em; }
+.plan-hero::after { content: ""; position: absolute; inset: 0; background: linear-gradient(to top, rgba(0,0,0,.45), transparent 45%); pointer-events: none; }
+
+/* #4 confidence breakdown */
+.plan-confidence { display: flex; flex-wrap: wrap; gap: 6px; }
+.plan-confidence span { font-size: 10.5px; color: var(--r-muted); padding: 3px 9px; border: 1px solid var(--r-line); border-radius: 99px; }
+.plan-confidence b { color: var(--r-ink); margin-left: 2px; }
+
+/* BIG IDEA companion note */
+.plan-companion { display: flex; gap: 8px; align-items: flex-start; margin: 0; padding: 10px 12px; border-radius: 12px; background: linear-gradient(135deg, rgba(69,201,138,.10), rgba(120,170,255,.06)); border: 1px solid rgba(69,201,138,.18); font-size: 12.5px; line-height: 1.55; color: var(--r-ink); }
+.plan-companion-avatar { font-size: 16px; flex: none; }
+
+/* #5 trip vibe mix */
+.plan-vibe { display: flex; flex-direction: column; gap: 4px; }
+.vibe-bar { display: flex; height: 9px; border-radius: 99px; overflow: hidden; background: var(--r-surface); }
+.vibe-seg { height: 100%; }
+.vibe-relaxation { background: #6fb3e0; }
+.vibe-adventure { background: #f0a06a; }
+.vibe-food { background: #f0c85a; }
+.vibe-culture { background: #d09cff; }
+.vibe-nature { background: #8fe3b8; }
+.vibe-nightlife { background: #c98cff; }
+.vibe-shopping { background: #f08cb8; }
+.vibe-legend { margin: 0; font-size: 11px; color: var(--r-muted); }
+.vibe-legend b { color: var(--r-ink); }
+
+/* #8 Today's Mood day card */
+.day-mood { display: flex; flex-wrap: wrap; gap: 4px 10px; align-items: baseline; justify-content: space-between; }
+.day-mood-meta { display: flex; gap: 10px; font-size: 10.5px; color: var(--r-muted); }
+.day-mood-meta .stars { font-size: 11px; }
+
+/* #10 weather month */
+.wx-month { color: var(--r-ink); margin-right: 2px; }
+
 /* ── V1.2 storyboard ───────────────────────────────────────────────────── */
 .est-tag { font-size: 8.5px; letter-spacing: .04em; text-transform: uppercase; padding: 0 5px; margin-left: 5px; border-radius: 99px; background: rgba(255,255,255,.06); color: var(--r-faint); vertical-align: middle; }
 .cap { text-transform: capitalize; }
@@ -482,16 +527,18 @@ a.stop-name:hover { text-decoration: underline; }
 /* #8 crowd */
 .stop-crowd { display: block; margin-left: 60px; font-size: 10px; color: var(--r-faint); }
 
-/* #9 group moments */
-.day-moments { display: flex; flex-wrap: wrap; gap: 5px; margin: 3px 0 0 2px; }
-.day-moments span { font-size: 10px; padding: 2px 7px; border-radius: 99px; background: rgba(255,255,255,.05); color: var(--r-muted); }
+/* #9 group moments — bolder highlight strip */
+.day-moments { display: flex; flex-wrap: wrap; gap: 5px; margin: 4px 0 0 2px; }
+.day-moments span { font-size: 10.5px; padding: 3px 9px; border-radius: 99px; background: rgba(69,201,138,.10); border: 1px solid rgba(69,201,138,.16); color: var(--r-ink); }
 
-/* #6 transport stepper */
+/* #6 transport — a vertical node-and-line stepper */
 .plan-transport { border: 1px solid var(--r-line); border-radius: 12px; padding: 9px 11px; background: var(--r-surface); }
-.plan-transport-head { margin: 0 0 6px; font-size: 11.5px; color: var(--r-ink); }
+.plan-transport-head { margin: 0 0 8px; font-size: 11.5px; color: var(--r-ink); }
 .tx-total { color: var(--r-muted); }
-.tx-steps { margin: 0; padding-left: 14px; display: flex; flex-direction: column; gap: 5px; }
-.tx-steps li { font-size: 11px; display: flex; flex-wrap: wrap; gap: 4px 8px; align-items: baseline; }
+.tx-steps { margin: 0; padding: 0 0 0 16px; list-style: none; position: relative; display: flex; flex-direction: column; gap: 10px; }
+.tx-steps::before { content: ""; position: absolute; left: 4px; top: 4px; bottom: 4px; width: 2px; background: var(--r-line-strong); }
+.tx-steps li { font-size: 11px; position: relative; display: flex; flex-wrap: wrap; gap: 3px 8px; align-items: baseline; }
+.tx-steps li::before { content: ""; position: absolute; left: -16px; top: 4px; width: 9px; height: 9px; border-radius: 50%; background: var(--r-accent); border: 2px solid var(--r-bg); }
 .tx-mode { color: var(--r-accent); font-weight: 600; }
 .tx-route { color: var(--r-ink); }
 .tx-meta { color: var(--r-faint); font-family: var(--font-mono), monospace; font-size: 10px; }

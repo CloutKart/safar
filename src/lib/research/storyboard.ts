@@ -155,7 +155,35 @@ function groupMoments(day: ItineraryDay): ItineraryDay["moments"] {
   };
 }
 
-// Full per-day enrichment: themes, times, crowd, moments.
+// ── "Today's Mood" day cards (#8) ────────────────────────────────────────────
+function moodEmojiFor(theme: string): string {
+  if (/adventure/i.test(theme)) return "🥾";
+  if (/culture|heritage|hidden/i.test(theme)) return "🏛️";
+  if (/food|slow/i.test(theme)) return "🍜";
+  if (/arrival/i.test(theme)) return "🌅";
+  if (/farewell/i.test(theme)) return "👋";
+  return "✨";
+}
+
+function dayMood(day: ItineraryDay): { moodEmoji: string; energy: number; walkingKm: number | null } {
+  const stops = day.stops;
+  const active = stops.filter((s) => s.kind === "trail" || s.kind === "activity").length;
+  const hardTrail = stops.some(
+    (s) => s.trail && (s.trail.difficulty === "hard" || s.trail.difficulty === "expert"),
+  );
+  const arrivalOrFarewell = /arrival|farewell/i.test(day.theme);
+  let energy = (arrivalOrFarewell ? 1 : 2) + active + (hardTrail ? 1 : 0);
+  energy = Math.max(1, Math.min(5, energy));
+
+  const trailKm = stops.reduce((sum, s) => sum + (s.trail?.distanceKm ?? 0), 0);
+  const wanderStops = stops.filter(
+    (s) => s.kind !== "transport" && s.kind !== "stay" && s.kind !== "food",
+  ).length;
+  const km = Math.round((trailKm + wanderStops * 0.6) * 10) / 10;
+  return { moodEmoji: moodEmojiFor(day.theme), energy, walkingKm: km > 0 ? km : null };
+}
+
+// Full per-day enrichment: themes, times, crowd, moments, mood/energy/walking.
 export function storyboardItinerary(
   itinerary: ItineraryDay[],
   gems: Gem[],
@@ -165,7 +193,7 @@ export function storyboardItinerary(
   return themed.map((day) => {
     const stops = assignCrowd(assignStopTimes(day.stops), byName);
     const withStops = { ...day, stops };
-    return { ...withStops, moments: groupMoments(withStops) };
+    return { ...withStops, moments: groupMoments(withStops), ...dayMood(withStops) };
   });
 }
 
@@ -416,6 +444,155 @@ export function narrativeFallback(day: ItineraryDay): string {
       ? named[0]
       : `${named.slice(0, -1).join(", ")} and ${named[named.length - 1]}`;
   return `${lead}: ${list}. ${day.goal}`.trim();
+}
+
+// ── Confidence breakdown (#4) ────────────────────────────────────────────────
+const clamp10 = (n: number) => Math.max(0, Math.min(10, Math.round(n)));
+
+export function buildConfidence(input: {
+  summary: TripSummary;
+  likelyInr: number;
+  weather: WeatherSummary | null;
+  gems: Gem[];
+  travelHours: number | null;
+  itinerary: ItineraryDay[];
+}): NonNullable<GeneratedPlan["confidence"]> {
+  const budget = input.summary.budget.maxInr;
+  const budgetFit = budget
+    ? Math.round(
+        Math.max(0, Math.min(1, 1 - Math.max(0, (input.likelyInr - budget) / budget))) * 100,
+      )
+    : 70;
+
+  const w = input.weather;
+  const weatherScore = w
+    ? clamp10(
+        10 -
+          (w.highC > 34 ? 3 : w.highC > 30 ? 1 : 0) -
+          (w.lowC < 2 ? 3 : w.lowC < 6 ? 1 : 0) -
+          (w.rainPct > 70 ? 3 : w.rainPct > 50 ? 2 : w.rainPct > 30 ? 1 : 0),
+      )
+    : 7;
+
+  const hidden = input.gems.filter(isHiddenGem).length;
+  const ratio = input.gems.length ? hidden / input.gems.length : 0.5;
+  const crowdScore = clamp10(4 + ratio * 6); // more hidden gems → quieter → higher
+
+  const stopsPerDay =
+    input.itinerary.reduce((s, d) => s + d.stops.length, 0) /
+    Math.max(1, input.itinerary.length);
+  const fatigueRaw = (input.travelHours ?? 6) / 16 + stopsPerDay / 8;
+  const travelFatigue: "low" | "medium" | "high" =
+    fatigueRaw < 0.85 ? "low" : fatigueRaw < 1.25 ? "medium" : "high";
+
+  return { budgetFit, weatherScore, crowdScore, travelFatigue };
+}
+
+// ── Trip vibe mix (#5) ───────────────────────────────────────────────────────
+const VIBE_BUCKET: Partial<Record<InterestTag, string>> = {
+  relaxation: "Relaxation",
+  cafes: "Relaxation",
+  beaches: "Relaxation",
+  spiritual: "Relaxation",
+  adventure: "Adventure",
+  trekking: "Adventure",
+  rafting: "Adventure",
+  camping: "Adventure",
+  mountains: "Adventure",
+  caves: "Adventure",
+  "road-trip": "Adventure",
+  food: "Food",
+  culture: "Culture",
+  haunted: "Culture",
+  photography: "Nature & views",
+  wildlife: "Nature & views",
+  nightlife: "Nightlife",
+  shopping: "Shopping",
+};
+
+// The trip's vibe as a percentage mix (top ~4, summing to 100). Driven by what
+// the group actually weighted, with the itinerary's stop kinds as a light blend.
+export function vibeBreakdown(
+  matchedTags: InterestTag[],
+  weights: Map<InterestTag, number>,
+  itinerary: ItineraryDay[],
+): Array<{ tag: string; pct: number }> {
+  const score = new Map<string, number>();
+  const add = (bucket: string | undefined, value: number) => {
+    if (!bucket || value <= 0) return;
+    score.set(bucket, (score.get(bucket) ?? 0) + value);
+  };
+  for (const tag of matchedTags) add(VIBE_BUCKET[tag], Math.max(0, weights.get(tag) ?? 0));
+  // Blend in what the days actually contain, so the mix reflects the real plan.
+  for (const day of itinerary) {
+    for (const stop of day.stops) {
+      if (stop.kind === "trail" || stop.kind === "activity") add("Adventure", 0.5);
+      else if (stop.kind === "food") add("Food", 0.4);
+      else if (stop.kind === "hidden-gem" || stop.kind === "sight") add("Culture", 0.3);
+    }
+  }
+  const entries = [...score.entries()].sort((a, b) => b[1] - a[1]).slice(0, 4);
+  const total = entries.reduce((sum, [, v]) => sum + v, 0);
+  if (total === 0) return [];
+  // Round to whole percents, then fix rounding drift so they sum to exactly 100.
+  const pcts = entries.map(([tag, v]) => ({ tag, pct: Math.round((v / total) * 100) }));
+  const drift = 100 - pcts.reduce((s, p) => s + p.pct, 0);
+  if (pcts.length) pcts[0].pct += drift;
+  return pcts;
+}
+
+// ── Tagline + companion note fallbacks (#2, BIG IDEA) ────────────────────────
+export function taglineFallback(matchedTags: InterestTag[], destination: CuratedDestination): string {
+  const tags = matchedTags.length ? matchedTags : destination.tags;
+  const phrases = tags
+    .map((t) => FRIENDLY[t])
+    .filter((v): v is string => Boolean(v))
+    .slice(0, 3);
+  if (phrases.length === 0) return "";
+  if (phrases.length === 1) return phrases[0].replace(/^./, (c) => c.toUpperCase());
+  const head = phrases.slice(0, -1).join(", ");
+  return `${head} & ${phrases[phrases.length - 1]}`.replace(/^./, (c) => c.toUpperCase());
+}
+
+// A warm hero paragraph for when the LLM is unavailable (#3) — no AI-brochure
+// phrasing, just what the trip feels like, built from the group's real interests.
+export function summaryFallback(
+  days: number,
+  matchedTags: InterestTag[],
+  pace: Pace,
+): string {
+  const phrases = matchedTags
+    .map((t) => FRIENDLY[t])
+    .filter((v): v is string => Boolean(v))
+    .slice(0, 3);
+  const list =
+    phrases.length === 0
+      ? "easy days and good food"
+      : phrases.length === 1
+        ? phrases[0]
+        : `${phrases.slice(0, -1).join(", ")} and ${phrases[phrases.length - 1]}`;
+  const tempo =
+    pace === "relaxed"
+      ? "It's built to feel like a break, not a checklist"
+      : pace === "packed"
+        ? "There's a lot packed in, but it still leaves room to breathe"
+        : "It balances the big moments with time to slow down";
+  return `${days} unhurried days of ${list}. ${tempo}.`;
+}
+
+export function companionNoteFallback(itinerary: ItineraryDay[]): string {
+  if (itinerary.length <= 1) return "";
+  const withEnergy = itinerary.map((d) => ({ day: d.day, energy: d.energy }));
+  const busiest = withEnergy.reduce((a, b) => (b.energy > a.energy ? b : a));
+  const easiest = withEnergy.reduce((a, b) => (b.energy < a.energy ? b : a));
+  const parts = ["I paced this so no day feels rushed."];
+  if (busiest.day !== easiest.day) {
+    parts.push(
+      `Day ${busiest.day} is intentionally the busiest, and Day ${easiest.day} slows things down.`,
+    );
+  }
+  parts.push("Meals and cafés sit after the big stuff, so everyone gets time to breathe.");
+  return parts.join(" ");
 }
 
 export function reasoningFallback(input: {

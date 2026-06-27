@@ -174,6 +174,10 @@ export const ItineraryDaySchema = z.object({
   theme: z.string().default(""),
   goal: z.string().default(""),
   narrative: z.string().default(""),
+  // V1.3 "Today's Mood" card: an emoji + energy level + rough walking distance.
+  moodEmoji: z.string().default(""),
+  energy: z.number().int().min(0).max(5).default(0),
+  walkingKm: z.number().nonnegative().nullable().default(null),
   moments: GroupMomentsSchema.default({
     photoSpot: null,
     sunset: null,
@@ -260,9 +264,28 @@ export const GeneratedPlanSchema = z.object({
       z.object({
         type: z.enum(["hero", "popular", "hidden_gem", "culture"]),
         url: z.string().url(),
+        // V1.3 themed label shown on the strip ("Morning", "Café", "Sunset"…).
+        caption: z.string().default(""),
       }),
     )
     .default([]),
+  // ── V1.3 Trip Companion (all defaulted) ──
+  // A poetic one-liner under the destination name, the first-person pacing note,
+  // the trip's vibe mix, and a confidence breakdown.
+  tagline: z.string().default(""),
+  companionNote: z.string().default(""),
+  vibeBreakdown: z
+    .array(z.object({ tag: z.string(), pct: z.number().int().min(0).max(100) }))
+    .default([]),
+  confidence: z
+    .object({
+      budgetFit: z.number().int().min(0).max(100),
+      weatherScore: z.number().int().min(0).max(10),
+      crowdScore: z.number().int().min(0).max(10),
+      travelFatigue: z.enum(["low", "medium", "high"]),
+    })
+    .nullable()
+    .default(null),
   // ── V1.2 storyboard (all defaulted for back-compat) ──
   // Ticked reasons this destination was picked (#4) + how many were considered.
   whyReasons: z.array(z.string()).default([]),

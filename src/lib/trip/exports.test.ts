@@ -33,6 +33,9 @@ function day(partial: Pick<Day, "day" | "title" | "stops" | "stay">): Day {
     theme: "",
     goal: "",
     narrative: "",
+    moodEmoji: "",
+    energy: 0,
+    walkingKm: null,
     moments: { photoSpot: null, sunset: null, dish: null, cafe: null, experience: null },
     ...partial,
   };
