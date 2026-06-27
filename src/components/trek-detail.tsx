@@ -12,6 +12,7 @@ import {
   turnaroundPoints,
   type ElevationPoint,
 } from "@/lib/trek/enrich";
+import { googleMapsUrl, osmUrl } from "@/lib/trek/exports";
 import { SunPlan } from "@/components/sun-plan";
 import { TrekConditions } from "@/components/trek-conditions";
 import { TrekExports } from "@/components/trek-exports";
@@ -350,6 +351,26 @@ export function TrekDetail({ trek }: { trek: Trek }) {
           </div>
         )}
       </section>
+
+      {/* Trailhead map (OSM embed — no key, pan/zoomable) */}
+      {coords && (
+        <section className="trek-section">
+          <h2>Trailhead map</h2>
+          <div className="trek-map">
+            <iframe
+              title={`${trek.name} trailhead map`}
+              loading="lazy"
+              src={`https://www.openstreetmap.org/export/embed.html?bbox=${coords[1] - 0.06}%2C${coords[0] - 0.04}%2C${coords[1] + 0.06}%2C${coords[0] + 0.04}&layer=mapnik&marker=${coords[0]}%2C${coords[1]}`}
+            />
+          </div>
+          <p className="trek-sub">
+            <a href={osmUrl(trek)} target="_blank" rel="noopener noreferrer">Open in OpenStreetMap</a>
+            {" · "}
+            <a href={googleMapsUrl(trek)} target="_blank" rel="noopener noreferrer">Google Maps</a>
+            {" — marker is the trailhead; the route line needs survey data (later)."}
+          </p>
+        </section>
+      )}
 
       {/* Proximity + trip integration teaser */}
       {(hubs.length > 0 || destination) && (
