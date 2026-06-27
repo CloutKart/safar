@@ -1764,7 +1764,12 @@ function PlanCard({
       <header>
         <span className="plan-num">{plan.optionNumber}</span>
         <div>
-          <h3>{plan.title}</h3>
+          <h3>
+            {plan.title}
+            {plan.primaryVibe ? (
+              <span className="plan-vibe-chip">{plan.primaryVibe}-led</span>
+            ) : null}
+          </h3>
           {plan.tagline ? (
             <p className="plan-tagline">{plan.tagline}</p>
           ) : null}

@@ -28,6 +28,7 @@ import {
   type Trail,
 } from "@/lib/research/trails";
 import { dishesFor, type Dish } from "@/data/dishes";
+import { groupVibes, primaryVibe as primaryVibeFor, wantsLuxury } from "@/lib/research/vibes";
 import { lookupCoords } from "@/lib/cityCoords";
 import { fetchWeather, type WeatherSummary } from "@/lib/weather";
 import {
@@ -809,43 +810,63 @@ export async function generatePlans(
     const head = name.split(/[ (]/)[0];
     return excluded.some((ex) => name === ex || name.includes(ex) || ex.includes(head));
   };
+  // Luxury intent (high budget / "honeymoon"/"pamper") nudges premium stays up.
+  const luxury = wantsLuxury(summary);
   const ranked = destinations
     .filter((destination) => !isExcluded(destination))
     .map((destination) => ({
       destination,
-      score: destinationScore(destination, summary, weights),
+      score:
+        destinationScore(destination, summary, weights) +
+        (luxury && destination.premium ? 3 : 0),
+      vibe: primaryVibeFor(destination, weights),
     }))
     .sort((a, b) => b.score - a.score);
 
-  // Pick three, nudging toward different states for variety — but as a soft
-  // penalty, so a clearly stronger same-state match (e.g. another Rajasthan
-  // fort town for a heritage trip) still beats a weak cross-state filler.
+  // Pick three for "mix & match": nudge toward different states AND different
+  // dominant vibes, so a group wanting e.g. adventure + food + heritage gets one
+  // option leaning into each — not three near-identical places. Soft penalties,
+  // so a clearly stronger same-vibe match still wins over a weak filler.
   const DIVERSITY_PENALTY = 1.2;
+  const VIBE_PENALTY = 1.5;
+  const COVERAGE_BONUS = 2;
+  // The group's top vibes — we actively try to give each one an option (so a
+  // group wanting wildlife + heritage + food gets one of each), then penalise
+  // repeating a vibe already covered.
+  const wantedVibes = new Set(groupVibes(weights).slice(0, 3));
   const pool = [...ranked];
-  const selected: CuratedDestination[] = [];
+  const selected: typeof ranked = [];
   while (selected.length < 3 && pool.length > 0) {
     let bestIndex = 0;
     let bestAdjusted = -Infinity;
     for (let i = 0; i < pool.length; i += 1) {
+      const vibe = pool[i].vibe;
       const sharesState = selected.some(
-        (chosen) => chosen.state === pool[i].destination.state,
+        (chosen) => chosen.destination.state === pool[i].destination.state,
       );
-      const adjusted = pool[i].score - (sharesState ? DIVERSITY_PENALTY : 0);
+      const vibeCovered = vibe !== "" && selected.some((chosen) => chosen.vibe === vibe);
+      const coversWanted = vibe !== "" && wantedVibes.has(vibe) && !vibeCovered;
+      const adjusted =
+        pool[i].score -
+        (sharesState ? DIVERSITY_PENALTY : 0) -
+        (vibeCovered ? VIBE_PENALTY : 0) +
+        (coversWanted ? COVERAGE_BONUS : 0);
       if (adjusted > bestAdjusted) {
         bestAdjusted = adjusted;
         bestIndex = i;
       }
     }
-    selected.push(pool[bestIndex].destination);
+    selected.push(pool[bestIndex]);
     pool.splice(bestIndex, 1);
   }
+  const selectedDestinations = selected.map((entry) => entry.destination);
 
   // Pin up to two explicitly requested cities first (so a named city always
   // appears), then fill the rest with the variety-ranked picks.
   const requested = resolveRequested(summary.requestedDestinations, weights).slice(0, 2);
   const finalSelection: CuratedDestination[] = [];
   const seen = new Set<string>();
-  for (const destination of [...requested, ...selected]) {
+  for (const destination of [...requested, ...selectedDestinations]) {
     const key = destination.slug || destination.name.toLowerCase();
     if (seen.has(key) || finalSelection.length >= 3) continue;
     seen.add(key);
@@ -1064,6 +1085,7 @@ export async function generatePlans(
       const companionNote =
         detail?.companionNote || companionNoteFallback(storyItinerary);
       const vibe = vibeBreakdown(matchedTags, weights, storyItinerary);
+      const planPrimaryVibe = primaryVibeFor(destination, weights);
       const confidence = buildConfidence({
         summary,
         likelyInr: likely,
@@ -1081,6 +1103,7 @@ export async function generatePlans(
         title: destination.name,
         tagline,
         companionNote,
+        primaryVibe: planPrimaryVibe,
         vibeBreakdown: vibe,
         confidence,
         destinationSlug: destination.slug,

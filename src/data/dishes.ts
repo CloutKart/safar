@@ -52,6 +52,30 @@ const dishesByCity: Record<string, Dish[]> = {
   ziro: [
     { name: "Apatani bamboo-shoot pork", description: "smoky tribal cooking of the Apatani plateau" },
   ],
+  lucknow: [
+    { name: "Tunday galouti kebab", description: "melt-in-the-mouth Awadhi minced-meat kebab" },
+    { name: "Lucknowi biryani & sheermal", description: "fragrant dum biryani with saffron flatbread" },
+  ],
+  amritsar: [
+    { name: "Amritsari kulcha & chole", description: "crisp stuffed kulcha with spiced chickpeas" },
+    { name: "Lassi & dal makhani", description: "thick sweet lassi and slow-cooked black dal" },
+  ],
+  kolkata: [
+    { name: "Phuchka & kathi roll", description: "Kolkata's legendary street snacks" },
+    { name: "Kosha mangsho & mishti", description: "slow mutton curry and Bengali sweets" },
+  ],
+  varanasi: [
+    { name: "Kachori sabzi & jalebi", description: "the classic Banarasi breakfast" },
+    { name: "Banarasi paan", description: "the city's signature after-meal ritual" },
+  ],
+  darjeeling: [
+    { name: "Momos & thukpa", description: "Tibetan dumplings and noodle soup in the hills" },
+    { name: "Darjeeling tea", description: "first-flush brews straight from the estates" },
+  ],
+  gulmarg: [
+    { name: "Rogan josh & yakhni", description: "Kashmiri wazwan mutton classics" },
+    { name: "Kahwa & Kashmiri pulao", description: "saffron tea and fruit-studded rice" },
+  ],
 };
 
 const dishesByState: Record<string, Dish[]> = {
@@ -117,6 +141,34 @@ const dishesByState: Record<string, Dish[]> = {
   "Andaman & Nicobar": [
     { name: "Grilled lobster & fish curry", description: "just-caught island seafood" },
     { name: "Coconut prawn curry", description: "coastal Andaman staple" },
+  ],
+  "Uttar Pradesh": [
+    { name: "Awadhi kebab & biryani", description: "rich Nawabi cooking — galouti, sheermal, dum biryani" },
+    { name: "Kachori sabzi", description: "spiced fried breakfast staple" },
+  ],
+  "West Bengal": [
+    { name: "Macher jhol & rice", description: "everyday Bengali fish curry" },
+    { name: "Rosogolla & mishti doi", description: "iconic Bengali sweets" },
+  ],
+  Punjab: [
+    { name: "Sarson da saag & makki di roti", description: "winter Punjabi comfort food" },
+    { name: "Butter chicken & dal makhani", description: "rich Amritsari classics" },
+  ],
+  Bihar: [
+    { name: "Litti chokha", description: "roasted wheat balls with spiced mash" },
+    { name: "Sattu paratha", description: "roasted-gram-stuffed flatbread" },
+  ],
+  Gujarat: [
+    { name: "Gujarati thali", description: "sweet-savoury platter with dhokla and farsan" },
+    { name: "Fafda-jalebi & thepla", description: "classic Gujarati snacks" },
+  ],
+  "Jammu & Kashmir": [
+    { name: "Rogan josh & yakhni", description: "Kashmiri wazwan mutton classics" },
+    { name: "Kahwa", description: "saffron-and-almond green tea" },
+  ],
+  Ladakh: [
+    { name: "Thukpa & momos", description: "warming high-altitude noodle soup and dumplings" },
+    { name: "Skyu & butter tea", description: "hearty Ladakhi wheat stew with gur-gur chai" },
   ],
 };
 

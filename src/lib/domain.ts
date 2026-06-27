@@ -274,6 +274,9 @@ export const GeneratedPlanSchema = z.object({
   // the trip's vibe mix, and a confidence breakdown.
   tagline: z.string().default(""),
   companionNote: z.string().default(""),
+  // The dominant vibe this option leans into ("Heritage", "Adventure"…) — used
+  // for the per-plan chip and for vibe-diverse option selection.
+  primaryVibe: z.string().default(""),
   vibeBreakdown: z
     .array(z.object({ tag: z.string(), pct: z.number().int().min(0).max(100) }))
     .default([]),

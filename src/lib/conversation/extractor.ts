@@ -56,6 +56,10 @@ const interestAliases: Record<InterestTag, string[]> = {
     "slow down", "leisurely", "leisure", "unwind", "unhurried", "laid back", "laid-back",
     "no rush", "switch off", "wind down", "detox", "chill", "chilling", "peaceful",
     "shaanti", "sukoon", "aram",
+    // Emotional / luxury phrasing — maps "rejuvenate", "honeymoon", "pamper" onto
+    // a relaxation lean (luxury intent is then caught via budget in wantsLuxury).
+    "rejuvenate", "rejuvenating", "recharge", "reset", "de-stress", "destress",
+    "pamper", "pampering", "honeymoon", "romantic", "spa", "resort",
   ],
   culture: [
     "culture", "cultural", "heritage", "heritage walk", "heritage trail", "heritage stay",
