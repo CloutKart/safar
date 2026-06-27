@@ -213,3 +213,30 @@ export type TrekIntent = z.infer<typeof TrekIntentSchema>;
 export function dnaVector(dna: TrekDna): number[] {
   return TREK_DNA_DIMS.map((d) => dna[d]);
 }
+
+const MONTH_NAMES = [
+  "January", "February", "March", "April", "May", "June",
+  "July", "August", "September", "October", "November", "December",
+];
+
+// A natural-language profile of a trek, embedded for semantic recall so a fuzzy
+// query ("misty forest walk, no crowds") lands near the right trails. The strong
+// DNA dimensions are spelled out as words so the embedding captures the mood.
+export function trekEmbeddingText(trek: Trek): string {
+  const strong = TREK_DNA_DIMS.filter((d) => trek.dna[d] >= 7);
+  const quiet = trek.dna.crowds <= 3 ? " Quiet and uncrowded." : "";
+  const months = trek.bestMonths.map((m) => MONTH_NAMES[m - 1]).join(", ");
+  return [
+    `${trek.name}.`,
+    `A ${trek.difficulty} ${trek.routeType ?? "trek"} in ${trek.region || trek.state}, ${trek.state}` +
+      `${trek.nearestCity ? `, near ${trek.nearestCity}` : ""}.`,
+    trek.blurb ? `${trek.blurb}.` : "",
+    trek.description,
+    quiet,
+    strong.length ? `Strong on ${strong.join(", ")}.` : "",
+    trek.suitability.length ? `Good for ${trek.suitability.join(", ")}.` : "",
+    months ? `Best months: ${months}.` : "",
+  ]
+    .filter(Boolean)
+    .join(" ");
+}

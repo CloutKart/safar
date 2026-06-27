@@ -2,6 +2,14 @@ import Link from "next/link";
 import { destinations } from "@/data/destinations";
 import { haversineKm, lookupCoords, type LatLng } from "@/lib/cityCoords";
 import { TREK_DNA_DIMS, type Trek, type TrekDnaDim } from "@/lib/trek/schema";
+import {
+  CROWD_COLS,
+  CROWD_ROWS,
+  crowdHeatmap,
+  trafficEstimate,
+  trekPacking,
+  turnaroundPoints,
+} from "@/lib/trek/enrich";
 import { SunPlan } from "@/components/sun-plan";
 
 // Major departure hubs we measure proximity from (the Part-4 proximity surface).
@@ -48,6 +56,10 @@ export function TrekDetail({ trek }: { trek: Trek }) {
   const hubs = nearestHubs(coords);
   const destination = destinations.find((d) => d.slug === trek.destinationSlug);
   const hoursToViewpoint = Math.min(Math.max((trek.durationHours ?? 4) / 2, 1), 4);
+  const packing = trekPacking(trek);
+  const turnarounds = turnaroundPoints(trek);
+  const heatmap = crowdHeatmap(trek);
+  const traffic = trafficEstimate(trek);
 
   return (
     <article className="trek-detail">
@@ -124,6 +136,23 @@ export function TrekDetail({ trek }: { trek: Trek }) {
         </section>
       )}
 
+      {/* Exit & turnaround points */}
+      {turnarounds.length > 0 && (
+        <section className="trek-section">
+          <h2>Bail-out points</h2>
+          <p className="trek-sub">Safe places to turn back if weather, fatigue or injury says so.</p>
+          <ul className="turnaround-list">
+            {turnarounds.map((t, i) => (
+              <li key={i} className={t.key ? "ta-key" : ""}>
+                <span className="ta-km">{t.km} km</span>
+                <span className="ta-label">{t.label}</span>
+                <span className="ta-note">{t.note}{t.key ? " · last easy turnaround before the crux" : ""}</span>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
+
       {/* Hidden moments — the Safar soul */}
       {trek.hiddenMoments.length > 0 && (
         <section className="trek-section trek-hidden">
@@ -191,16 +220,52 @@ export function TrekDetail({ trek }: { trek: Trek }) {
         )}
       </section>
 
-      {/* Crowd pattern */}
-      {trek.crowdPattern && (
+      {/* Crowd heatmap + traffic */}
+      <section className="trek-section">
+        <h2>When it&apos;s busy</h2>
+        <div className="crowd-heatmap" role="img" aria-label="Crowd levels by day and time">
+          <span className="ch-corner" />
+          {CROWD_COLS.map((c) => (
+            <span key={c} className="ch-col">{c}</span>
+          ))}
+          {CROWD_ROWS.map((row) => (
+            <div className="ch-row" key={row} style={{ display: "contents" }}>
+              <span className="ch-rowlabel">{row}</span>
+              {CROWD_COLS.map((col) => {
+                const cell = heatmap.find((x) => x.row === row && x.col === col)!;
+                return <span key={col} className={`ch-cell ch-${cell.level}`}>{cell.level}</span>;
+              })}
+            </div>
+          ))}
+        </div>
+        <div className="crowd-legend">
+          <span><i className="ch-low" /> quiet</span>
+          <span><i className="ch-medium" /> moderate</span>
+          <span><i className="ch-high" /> busy</span>
+        </div>
+        <p className="trek-traffic">
+          Roughly {traffic.weekday} on a weekday, {traffic.weekend}. Peak: {traffic.peak}.
+          Quietest: {traffic.quiet}.
+        </p>
+      </section>
+
+      {/* Dynamic, condition-aware packing */}
+      {packing.length > 0 && (
         <section className="trek-section">
-          <h2>When it&apos;s busy</h2>
-          <p className="trek-crowd">
-            {trek.crowdPattern.busiest.length > 0 && (
-              <>Busiest: {trek.crowdPattern.busiest.join(", ")}. </>
-            )}
-            {trek.crowdPattern.quietWindow && <>Quietest: {trek.crowdPattern.quietWindow}.</>}
-          </p>
+          <h2>What to pack</h2>
+          <p className="trek-sub">Tuned to this trail&apos;s terrain, altitude and season.</p>
+          <div className="pack-groups">
+            {packing.map((g) => (
+              <div className="pack-group" key={g.title}>
+                <h3>{g.title}</h3>
+                <ul>
+                  {g.items.map((item) => (
+                    <li key={item}>{item}</li>
+                  ))}
+                </ul>
+              </div>
+            ))}
+          </div>
         </section>
       )}
 
@@ -258,6 +323,10 @@ export function TrekDetail({ trek }: { trek: Trek }) {
           <p>
             Nearest town: <strong>{trek.emergency.nearestTown || "—"}</strong>.{" "}
             {trek.emergency.evacNote}
+          </p>
+          <p className="trek-condition">
+            🩹 Trail condition: <strong>curated baseline</strong> — no live trekker
+            reports yet (crowdsourced reports are coming).
           </p>
           <p className="trek-verify">
             ⚠️ These are curated, community-informed estimates — verify current

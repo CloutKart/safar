@@ -14,9 +14,13 @@ const envSchema = z.object({
   LLM_MODEL: z.string().optional(),
   // Optional OpenAI-compatible embeddings endpoint for Trek DNA semantic recall
   // (pgvector). When unset, the trek recommender uses its deterministic
-  // DNA-cosine + keyword fallback, so search still works. Reuses LLM_API_KEY.
+  // DNA-cosine + keyword fallback, so search still works. The embeddings provider
+  // is usually DIFFERENT from the chat LLM — e.g. chat on Groq (no embeddings API)
+  // + embeddings on Gemini/Jina — so it gets its own key, falling back to
+  // LLM_API_KEY only when the same provider serves both.
   LLM_EMBED_URL: optionalUrl,
   LLM_EMBED_MODEL: z.string().optional(),
+  LLM_EMBED_KEY: z.string().optional(),
   // Safety caps to stay under the Gemini free-tier rate limits (so billing
   // doesn't kick in). Defaults sit just below the 2.0-flash free tier.
   LLM_MAX_RPM: z.coerce.number().int().positive().optional(),

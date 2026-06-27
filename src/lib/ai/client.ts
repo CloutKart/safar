@@ -97,14 +97,20 @@ export async function generateStructured<T>(input: {
 // then fall back to the deterministic DNA-cosine + keyword path. OpenAI-compatible
 // `/embeddings` shape; LLM_EMBED_URL is separate from the chat endpoint.
 export async function generateEmbedding(text: string): Promise<number[] | null> {
-  if (!env.LLM_EMBED_URL || !env.LLM_EMBED_MODEL || !env.LLM_API_KEY) return null;
-  if (!withinBudget()) return null;
+  // The embeddings provider is typically separate from the chat LLM (Groq has no
+  // embeddings API), so prefer its own key; fall back to LLM_API_KEY when one
+  // provider serves both (e.g. all-Gemini).
+  const key = env.LLM_EMBED_KEY ?? env.LLM_API_KEY;
+  if (!env.LLM_EMBED_URL || !env.LLM_EMBED_MODEL || !key) return null;
+  // Note: embeddings are NOT gated by the chat budget (withinBudget) — the
+  // embeddings provider is separate (e.g. Gemini/Jina) with its own free limits,
+  // so a 20-trek seed isn't throttled by the Groq chat cap.
 
   try {
     const response = await fetch(env.LLM_EMBED_URL, {
       method: "POST",
       headers: {
-        Authorization: `Bearer ${env.LLM_API_KEY}`,
+        Authorization: `Bearer ${key}`,
         "Content-Type": "application/json",
       },
       body: JSON.stringify({ model: env.LLM_EMBED_MODEL, input: text }),

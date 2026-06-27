@@ -47,6 +47,29 @@ export async function listTreks(): Promise<Trek[]> {
   return seedTreks;
 }
 
+// Upsert a trek (+ its embedding) into the Supabase table. The embedding lives in
+// the pgvector column; the jsonb payload stores the trek with embedding nulled out
+// to avoid duplicating the vector. Returns false when Supabase isn't configured.
+export async function upsertTrek(trek: Trek, embedding: number[] | null): Promise<boolean> {
+  if (!hasSupabase) return false;
+  try {
+    const { error } = await getSupabaseAdmin().from("treks").upsert(
+      {
+        slug: trek.slug,
+        name: trek.name,
+        state: trek.state,
+        data: { ...trek, embedding: null },
+        embedding,
+        updated_at: new Date().toISOString(),
+      },
+      { onConflict: "slug" },
+    );
+    return !error;
+  } catch {
+    return false;
+  }
+}
+
 // Semantic recall via pgvector. Returns null when unavailable (no Supabase, no
 // embedding, or the table isn't seeded) so the caller uses deterministic recall.
 export async function matchTreks(
