@@ -9,6 +9,10 @@ interface ChatCompletionResponse {
   }>;
 }
 
+interface EmbeddingResponse {
+  data?: Array<{ embedding?: number[] }>;
+}
+
 // Stay under the Gemini free-tier rate limits so usage never tips into paid
 // billing. Defaults sit just below the gemini-2.0-flash free tier (15 RPM /
 // 1500 RPD); tune via LLM_MAX_RPM / LLM_MAX_RPD. When a cap is hit, callers get
@@ -83,6 +87,33 @@ export async function generateStructured<T>(input: {
 
   try {
     return input.schema.parse(JSON.parse(content));
+  } catch {
+    return null;
+  }
+}
+
+// Embed text for Trek DNA semantic recall (pgvector). Shares the LLM rate budget
+// and degrades to null (no embedding) when unconfigured or over budget — callers
+// then fall back to the deterministic DNA-cosine + keyword path. OpenAI-compatible
+// `/embeddings` shape; LLM_EMBED_URL is separate from the chat endpoint.
+export async function generateEmbedding(text: string): Promise<number[] | null> {
+  if (!env.LLM_EMBED_URL || !env.LLM_EMBED_MODEL || !env.LLM_API_KEY) return null;
+  if (!withinBudget()) return null;
+
+  try {
+    const response = await fetch(env.LLM_EMBED_URL, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${env.LLM_API_KEY}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ model: env.LLM_EMBED_MODEL, input: text }),
+      signal: AbortSignal.timeout(20_000),
+    });
+    if (!response.ok) return null;
+    const payload = (await response.json()) as EmbeddingResponse;
+    const embedding = payload.data?.[0]?.embedding;
+    return Array.isArray(embedding) && embedding.length > 0 ? embedding : null;
   } catch {
     return null;
   }
