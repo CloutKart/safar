@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { TrekExplorer } from "@/components/trek-explorer";
+import { TrekDiscover } from "@/components/trek-discover";
 import { listTreks } from "@/lib/trek/store";
 
 export const dynamic = "force-dynamic";
@@ -38,6 +39,10 @@ export default async function TreksPage() {
 
       <section className="shell">
         <TrekExplorer featured={featured} />
+      </section>
+
+      <section className="shell">
+        <TrekDiscover />
       </section>
 
       <footer className="footer shell">
