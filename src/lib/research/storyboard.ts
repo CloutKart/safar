@@ -114,7 +114,7 @@ function dayKinds(day: ItineraryDay): Set<string> {
   return new Set(day.stops.map((s) => s.kind));
 }
 
-function assignThemes(itinerary: ItineraryDay[]): ItineraryDay[] {
+function assignThemes(itinerary: ItineraryDay[], travelHours: number | null = null): ItineraryDay[] {
   const last = itinerary.length - 1;
   const usedThemes = new Set<string>();
   return itinerary.map((day, index) => {
@@ -122,7 +122,10 @@ function assignThemes(itinerary: ItineraryDay[]): ItineraryDay[] {
     let goal: string;
     if (index === 0) {
       theme = "Arrival & Slow Evening";
-      goal = "Settle in and unwind after the journey.";
+      goal =
+        travelHours != null && travelHours > 5
+          ? `You'll have travelled ~${Math.round(travelHours)}h — tonight is intentionally easy.`
+          : "Settle in and unwind after the journey.";
     } else if (index === last && itinerary.length > 1) {
       theme = "Farewell Morning";
       goal = "One easy final highlight, then the road home.";
@@ -183,18 +186,105 @@ function dayMood(day: ItineraryDay): { moodEmoji: string; energy: number; walkin
   return { moodEmoji: moodEmojiFor(day.theme), energy, walkingKm: km > 0 ? km : null };
 }
 
-// Full per-day enrichment: themes, times, crowd, moments, mood/energy/walking.
+// ── V1.4: arrival/departure pacing + per-activity season gate (#1, #2, #3) ────
+// Activities that are seasonal beyond the destination's idealMonths — gated by
+// the travel month so the plan never promises a monsoon-shut water sport.
+const ACTIVITY_SEASON: Array<{ test: RegExp; avoidMonths: number[]; note: string }> = [
+  { test: /scuba|snorkel|\bdive\b|water.?sport|kayak|jet.?ski|parasail|banana boat/i, avoidMonths: [6, 7, 8, 9], note: "often closed in the monsoon — confirm locally" },
+  { test: /\braft|white.?water/i, avoidMonths: [7, 8, 9], note: "rafting is frequently suspended at peak monsoon — confirm" },
+  { test: /summit|\bpass\b|glacier|high.?altitude/i, avoidMonths: [12, 1, 2], note: "can be snowbound mid-winter — confirm access" },
+];
+
+const appendNote = (description: string | null, note: string): string =>
+  `${description ? `${description} ` : ""}(${note})`;
+
+// Drop a stop whose activity is out of season this month — unless that would
+// leave the day with no real anchor, in which case annotate it instead.
+function applySeasonGate(stops: ItineraryStop[], month: number | null): ItineraryStop[] {
+  if (month == null) return stops;
+  const gatedRule = (s: ItineraryStop) =>
+    ACTIVITY_SEASON.find((r) => r.test.test(s.name) && r.avoidMonths.includes(month));
+  const anchors = stops.filter((s) => s.kind !== "stay" && s.kind !== "transport");
+  const dropSafely = anchors.filter((s) => !gatedRule(s)).length >= 1;
+  return stops
+    .map((s) => {
+      const rule = gatedRule(s);
+      if (!rule) return s;
+      if (dropSafely) return null;
+      return { ...s, description: appendNote(s.description, rule.note) };
+    })
+    .filter((s): s is ItineraryStop => s != null);
+}
+
+// Keep an arrival/departure day light: stays + transport, plus at most two light
+// (non-trail, non-activity) stops; never empty (the schema needs ≥1 stop).
+function lightenDay(stops: ItineraryStop[]): ItineraryStop[] {
+  const keep = new Set<ItineraryStop>(stops.filter((s) => s.kind === "stay" || s.kind === "transport"));
+  let added = 0;
+  for (const s of stops) {
+    if (keep.has(s)) continue;
+    if (s.kind === "trail" || s.kind === "activity") continue;
+    if (added >= 2) continue;
+    keep.add(s);
+    added += 1;
+  }
+  const result = stops.filter((s) => keep.has(s));
+  return result.length > 0 ? result : stops.slice(0, 1);
+}
+
+function enforcePacingAndSeason(
+  itinerary: ItineraryDay[],
+  travelHours: number | null,
+  month: number | null,
+): ItineraryDay[] {
+  const last = itinerary.length - 1;
+  return itinerary.map((day, index) => {
+    let stops = applySeasonGate(day.stops, month);
+    const longArrival = index === 0 && travelHours != null && travelHours > 5;
+    const departure = index === last && itinerary.length > 1;
+    if (longArrival || departure) stops = lightenDay(stops);
+    return { ...day, stops };
+  });
+}
+
+// Flag exactly one stop trip-wide as the "Safar secret" (#35): the most
+// photogenic hidden gem (tie-broken toward the quietest).
+function flagSecret(days: ItineraryDay[]): ItineraryDay[] {
+  const candidates: Array<{ di: number; si: number; score: number }> = [];
+  days.forEach((day, di) =>
+    day.stops.forEach((s, si) => {
+      if (s.kind !== "hidden-gem") return;
+      const quiet = s.crowdLevel === "low" ? 3 : s.crowdLevel === "medium" ? 1 : 0;
+      candidates.push({ di, si, score: (s.photoScore ?? 0) * 10 + quiet });
+    }),
+  );
+  if (candidates.length === 0) return days;
+  const pick = candidates.reduce((a, b) => (b.score > a.score ? b : a));
+  return days.map((day, di) =>
+    di !== pick.di
+      ? day
+      : { ...day, stops: day.stops.map((s, si) => (si === pick.si ? { ...s, secret: true } : s)) },
+  );
+}
+
+// Full per-day enrichment: arrival/departure pacing + season gate, then themes,
+// times, crowd, moments, mood/energy/walking, and one "secret" stop.
 export function storyboardItinerary(
   itinerary: ItineraryDay[],
   gems: Gem[],
+  opts: { travelHours?: number | null; month?: number | null } = {},
 ): ItineraryDay[] {
+  const travelHours = opts.travelHours ?? null;
+  const month = opts.month ?? null;
+  const paced = enforcePacingAndSeason(itinerary, travelHours, month);
   const byName = gemByName(gems);
-  const themed = assignThemes(itinerary);
-  return themed.map((day) => {
+  const themed = assignThemes(paced, travelHours);
+  const enriched = themed.map((day) => {
     const stops = assignCrowd(assignStopTimes(day.stops), byName);
     const withStops = { ...day, stops };
     return { ...withStops, moments: groupMoments(withStops), ...dayMood(withStops) };
   });
+  return flagSecret(enriched);
 }
 
 // ── Why reasons (#4) + confidence ────────────────────────────────────────────
@@ -486,6 +576,65 @@ export function buildConfidence(input: {
     fatigueRaw < 0.85 ? "low" : fatigueRaw < 1.25 ? "medium" : "high";
 
   return { budgetFit, weatherScore, crowdScore, travelFatigue };
+}
+
+// ── Season fit 0–10 (#19) ────────────────────────────────────────────────────
+// Real forecast comfort when available, else idealMonths adjacency for the month.
+export function seasonFitScore(input: {
+  destination: CuratedDestination;
+  month: number | null;
+  weather: WeatherSummary | null;
+}): number {
+  const w = input.weather;
+  if (w) {
+    return clamp10(
+      10 -
+        (w.highC > 34 ? 3 : w.highC > 30 ? 1 : 0) -
+        (w.lowC < 2 ? 3 : w.lowC < 6 ? 1 : 0) -
+        (w.rainPct > 70 ? 3 : w.rainPct > 50 ? 2 : w.rainPct > 30 ? 1 : 0),
+    );
+  }
+  if (input.month == null) return 7;
+  if (input.destination.idealMonths.includes(input.month)) return 9;
+  const adjacent = input.destination.idealMonths.some((m) => {
+    const d = Math.abs(m - input.month!);
+    return Math.min(d, 12 - d) === 1;
+  });
+  return adjacent ? 6 : 3;
+}
+
+// ── Trip personality archetype (#8) ──────────────────────────────────────────
+// A named "feel" for the whole trip, from its dominant vibe + pace.
+export function tripPersonality(
+  primaryVibe: string,
+  pace: Pace,
+  dimensions: GeneratedPlan["dimensions"],
+): string {
+  switch (primaryVibe) {
+    case "Beach":
+      return "Coastal Escape";
+    case "Wildlife":
+      return "Wildlife Safari";
+    case "Spiritual":
+      return "Spiritual Retreat";
+    case "Heritage":
+      return "Heritage Journey";
+    case "Scenic":
+      return "Photography Retreat";
+    case "Food":
+    case "Luxury":
+      return "Slow Living";
+    case "Offbeat":
+      return "Backpacker Adventure";
+    case "Adventure":
+      return pace === "packed" ? "Backpacker Adventure" : "Mountain Escape";
+    case "Hill Station":
+      return "Mountain Escape";
+    default:
+      if (pace === "relaxed") return "Slow Living";
+      if (dimensions && dimensions.adventure >= 4) return "Mountain Escape";
+      return "Balanced Getaway";
+  }
 }
 
 // ── Trip vibe mix (#5) ───────────────────────────────────────────────────────

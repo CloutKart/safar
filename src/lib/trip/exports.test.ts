@@ -24,6 +24,7 @@ function stop(name: string, kind: ItineraryStop["kind"] = "sight"): ItinerarySto
     bestTime: null,
     crowdLevel: null,
     photoScore: null,
+    secret: false,
   };
 }
 

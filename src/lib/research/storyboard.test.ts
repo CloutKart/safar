@@ -11,8 +11,10 @@ import {
   companionNoteFallback,
   difficultyAndPace,
   foodSplit,
+  seasonFitScore,
   storyboardItinerary,
   taglineFallback,
+  tripPersonality,
   vibeBreakdown,
 } from "@/lib/research/storyboard";
 
@@ -32,6 +34,7 @@ function stop(partial: Partial<ItineraryStop> & Pick<ItineraryStop, "name">): It
     bestTime: null,
     crowdLevel: null,
     photoScore: null,
+    secret: false,
     ...partial,
   };
 }
@@ -249,5 +252,59 @@ describe("foodSplit + buildDimensions", () => {
       expect(v).toBeGreaterThanOrEqual(0);
       expect(v).toBeLessThanOrEqual(5);
     }
+  });
+});
+
+describe("V1.4 pacing, season gate & secret", () => {
+  it("strips treks from a long-travel arrival day and the departure day, keeps the middle", () => {
+    const itin = [
+      day(1, [stop({ name: "Hard Trek", kind: "trail" }), stop({ name: "Cafe", kind: "food" }), stop({ name: "Hotel", kind: "stay" })]),
+      day(2, [stop({ name: "Summit Trek", kind: "trail" }), stop({ name: "Lake", kind: "sight" })]),
+      day(3, [stop({ name: "Return Trek", kind: "trail" }), stop({ name: "Market", kind: "sight" }), stop({ name: "Hotel", kind: "stay" })]),
+    ];
+    const out = storyboardItinerary(itin, [], { travelHours: 10, month: 5 });
+    expect(out[0].stops.some((s) => s.kind === "trail")).toBe(false);
+    expect(out[2].stops.some((s) => s.kind === "trail")).toBe(false);
+    expect(out[1].stops.some((s) => s.kind === "trail")).toBe(true);
+  });
+
+  it("leaves a short-journey arrival day alone", () => {
+    const itin = [
+      day(1, [stop({ name: "Easy Trail", kind: "trail" }), stop({ name: "Hotel", kind: "stay" })]),
+      day(2, [stop({ name: "Market", kind: "sight" }), stop({ name: "Hotel", kind: "stay" })]),
+    ];
+    const out = storyboardItinerary(itin, [], { travelHours: 3, month: 5 });
+    expect(out[0].stops.some((s) => s.kind === "trail")).toBe(true);
+  });
+
+  it("gates a monsoon water sport in July", () => {
+    const itin = [
+      day(1, [stop({ name: "Scuba diving session", kind: "activity" }), stop({ name: "Beach shack", kind: "food" }), stop({ name: "Hotel", kind: "stay" })]),
+    ];
+    const out = storyboardItinerary(itin, [], { month: 7 });
+    expect(out[0].stops.some((s) => /scuba/i.test(s.name))).toBe(false);
+  });
+
+  it("flags exactly one hidden gem as the Safar secret", () => {
+    const itin = [
+      day(1, [stop({ name: "Gem A", kind: "hidden-gem" }), stop({ name: "Hotel", kind: "stay" })]),
+      day(2, [stop({ name: "Gem B", kind: "hidden-gem" }), stop({ name: "Gem C", kind: "hidden-gem" })]),
+    ];
+    const out = storyboardItinerary(itin, [], {});
+    expect(out.flatMap((d) => d.stops).filter((s) => s.secret)).toHaveLength(1);
+  });
+});
+
+describe("seasonFitScore + tripPersonality", () => {
+  it("scores in-season above off-season", () => {
+    const dest = { idealMonths: [4, 5, 6] } as unknown as CuratedDestination;
+    expect(seasonFitScore({ destination: dest, month: 5, weather: null })).toBeGreaterThan(
+      seasonFitScore({ destination: dest, month: 12, weather: null }),
+    );
+  });
+
+  it("names an archetype from the dominant vibe", () => {
+    expect(tripPersonality("Heritage", "balanced", null)).toBe("Heritage Journey");
+    expect(tripPersonality("Beach", "relaxed", null)).toBe("Coastal Escape");
   });
 });

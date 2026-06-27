@@ -42,9 +42,11 @@ import {
   foodSplit,
   narrativeFallback,
   reasoningFallback,
+  seasonFitScore,
   storyboardItinerary,
   summaryFallback,
   taglineFallback,
+  tripPersonality,
   vibeBreakdown,
 } from "@/lib/research/storyboard";
 
@@ -109,7 +111,17 @@ function destinationScore(
   const month = summary.dates.start
     ? new Date(`${summary.dates.start}T00:00:00Z`).getUTCMonth() + 1
     : null;
-  if (month && !destination.idealMonths.includes(month)) score -= 2.5;
+  // Graded season penalty: a month one off the ideal window stings less than one
+  // deep in the wrong season (so an in-season pick clearly beats an off-season one).
+  if (month && destination.idealMonths.length && !destination.idealMonths.includes(month)) {
+    const dist = Math.min(
+      ...destination.idealMonths.map((m) => {
+        const d = Math.abs(m - month);
+        return Math.min(d, 12 - d);
+      }),
+    );
+    score -= 1.5 + dist;
+  }
   const budget = summary.budget.maxInr;
   if (budget) {
     const estimated =
@@ -128,6 +140,42 @@ function destinationScore(
   );
   if (burden != null) score -= Math.min(3, burden / 700);
   return score;
+}
+
+const MONTHS_SHORT = [
+  "Jan", "Feb", "Mar", "Apr", "May", "Jun",
+  "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
+];
+
+// The single most salient reason a destination lost (#5), from the same penalties
+// destinationScore applies — surfaced in the "Also considered" panel.
+function rejectionReason(
+  entry: { destination: CuratedDestination; vibe: string },
+  summary: TripSummary,
+  winners: Array<{ destination: CuratedDestination; vibe: string }>,
+  month: number | null,
+): string {
+  const d = entry.destination;
+  if (month && d.idealMonths.length && !d.idealMonths.includes(month)) {
+    return `off-season in ${MONTHS_SHORT[month - 1]}`;
+  }
+  const budget = summary.budget.maxInr;
+  const days = summary.dates.durationDays ?? d.minDays;
+  if (budget) {
+    const estimated = d.dailyBudgetInr[0] * days + d.accessCostInr[0];
+    if (estimated > budget) return "over your budget";
+  }
+  if (days < d.minDays || days > d.maxDays + 1) {
+    return `better suited to a ${d.minDays}–${d.maxDays}-day trip`;
+  }
+  const burden = travelBurdenKm(summary.departureCities, d.slug, d.name);
+  const origin = summary.departureCities[0];
+  if (burden != null && burden > 1200) {
+    return `long haul${origin ? ` from ${origin}` : ""} (~${burden} km)`;
+  }
+  const sameVibe = winners.find((w) => entry.vibe && w.vibe === entry.vibe);
+  if (sameVibe) return `similar vibe to ${sameVibe.destination.name}`;
+  return "edged out on overall fit";
 }
 
 // A 0-100 match score with the spec's weighting, plus a one-line "why". All
@@ -175,8 +223,6 @@ function scorePlanMatch(input: {
           ? 1
           : 0.45
         : 0.85;
-  const feasibility = (durationOk + seasonOk) / 2;
-
   const hiddenCount = gems.filter(isHiddenGem).length;
   const popularCount = gems.length - hiddenCount;
   const hiddenQuality = Math.min(1, hiddenCount / 4);
@@ -189,16 +235,26 @@ function scorePlanMatch(input: {
   const trek = trekWeight(weights);
   const trailBonus = trek > 0 ? Math.min(8, trailCount * 2) : 0;
 
+  // V1.4 weighting (#4): hard constraints 35 / season 20 / primary interest 20 /
+  // travel comfort 10 / budget value 10 / extras 5. Exclusions are already a hard
+  // pre-filter in generatePlans; this scores how well the rest fits.
+  const budgetCapOk = budget ? (likely <= budget ? 1 : 0.3) : 1;
+  const constraintsMet = (durationOk + budgetCapOk) / 2;
+  const burden = travelBurdenKm(summary.departureCities, destination.slug, destination.name);
+  const travelComfort =
+    burden == null ? 0.7 : Math.max(0, Math.min(1, 1 - Math.max(0, burden - 300) / 1500));
+  const extras = (hiddenQuality + popularQuality + accommodation) / 3;
+
   const matchScore = Math.min(
     100,
     Math.round(
       100 *
-        (0.3 * preference +
-          0.2 * budgetFit +
-          0.15 * feasibility +
-          0.15 * hiddenQuality +
-          0.1 * popularQuality +
-          0.1 * accommodation),
+        (0.35 * constraintsMet +
+          0.2 * seasonOk +
+          0.2 * preference +
+          0.1 * travelComfort +
+          0.1 * budgetFit +
+          0.05 * extras),
     ) + trailBonus,
   );
 
@@ -334,6 +390,7 @@ function stop(
     bestTime: null,
     crowdLevel: null,
     photoScore: null,
+    secret: false,
     ...partial,
   };
 }
@@ -534,14 +591,25 @@ function attachDishes(
   dishes: Dish[],
 ): GeneratedPlan["itinerary"] {
   if (dishes.length === 0) return itinerary;
-  let cursor = 0;
+  // No-repeat (#32): prefer a dish not yet used; only once every dish has been
+  // shown do we cycle, so a multi-day trip is a real food journey, not "Kafuli ×3".
+  const used = new Set<string>();
+  let overflow = 0;
+  const nextDish = (): Dish => {
+    const fresh = dishes.find((d) => !used.has(d.name));
+    if (fresh) {
+      used.add(fresh.name);
+      return fresh;
+    }
+    const dish = dishes[overflow % dishes.length];
+    overflow += 1;
+    return dish;
+  };
   return itinerary.map((day) => ({
     ...day,
     stops: day.stops.map((stop) => {
       if (stop.kind !== "food" || stop.mustTry) return stop;
-      const dish = dishes[cursor % dishes.length];
-      cursor += 1;
-      return { ...stop, mustTry: dish.name };
+      return { ...stop, mustTry: nextDish().name };
     }),
   }));
 }
@@ -873,6 +941,23 @@ export async function generatePlans(
     finalSelection.push(destination);
   }
 
+  // V1.4 (#5): the destinations that lost, each with one reason — the same list on
+  // all three plans, rendered once. `ranked` is already sorted by score desc.
+  const month = summary.dates.start
+    ? new Date(`${summary.dates.start}T00:00:00Z`).getUTCMonth() + 1
+    : null;
+  const keyOf = (d: CuratedDestination) => d.slug || d.name.toLowerCase();
+  const winnerSlugs = new Set(finalSelection.map(keyOf));
+  const winnerEntries = ranked.filter((e) => winnerSlugs.has(keyOf(e.destination)));
+  const alsoConsidered = ranked
+    .filter((e) => !winnerSlugs.has(keyOf(e.destination)))
+    .slice(0, 3)
+    .map((e) => ({
+      name: e.destination.name,
+      state: e.destination.state,
+      reason: rejectionReason(e, summary, winnerEntries, month),
+    }));
+
   const angles: GeneratedPlan["angle"][] = [
     "balanced",
     "adventurous",
@@ -1052,7 +1137,7 @@ export async function generatePlans(
 
       // ── V1.2 storyboard: turn the itinerary into a scannable, justified story.
       const { transport, travelHours } = buildTransport(summary, destination, transportInr);
-      const storyItinerary = storyboardItinerary(itinerary, gems).map((day) => ({
+      const storyItinerary = storyboardItinerary(itinerary, gems, { travelHours, month }).map((day) => ({
         ...day,
         narrative: day.narrative || narrativeFallback(day),
       }));
@@ -1124,6 +1209,9 @@ export async function generatePlans(
         travelHours,
         dimensions,
         transport,
+        seasonFit: seasonFitScore({ destination, month, weather }),
+        tripPersonality: tripPersonality(planPrimaryVibe, pace, dimensions),
+        alsoConsidered,
         sources: [
           {
             title: destination.state

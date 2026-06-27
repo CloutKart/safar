@@ -744,6 +744,31 @@ export function TripRoom({
     void postMessage(`vote ${option}`);
   }
 
+  // "Why these won" (#5): the destinations that lost, with one reason each —
+  // identical across plans, so render once below the cards.
+  const renderAlsoConsidered = () => {
+    const items = state.plans[0]?.alsoConsidered ?? [];
+    if (items.length === 0) return null;
+    const medals = ["🥈", "🥉", "▪︎"];
+    return (
+      <section className="also-considered">
+        <h4>Also considered</h4>
+        <ul>
+          {items.map((d, i) => (
+            <li key={`${d.name}-${i}`}>
+              <span className="ac-medal">{medals[i] ?? "▪︎"}</span>
+              <span className="ac-name">
+                {d.name}
+                {d.state ? <small> · {d.state}</small> : null}
+              </span>
+              <span className="ac-reason">{d.reason}</span>
+            </li>
+          ))}
+        </ul>
+      </section>
+    );
+  };
+
   // One PlanCard renderer, shared by the desktop side panel and the mobile
   // in-chat feed, so plans (photos + per-stop pricing) show on every screen.
   const renderPlan = (plan: GeneratedPlan) => (
@@ -1295,6 +1320,7 @@ export function TripRoom({
                             ))}
                           </div>
                         )}
+                        {renderAlsoConsidered()}
                       </>
                     )}
                   </div>
@@ -1423,7 +1449,10 @@ export function TripRoom({
           {compareOpen ? (
             <PlanCompare plans={state.plans} />
           ) : (
-            state.plans.map(renderPlan)
+            <>
+              {state.plans.map(renderPlan)}
+              {renderAlsoConsidered()}
+            </>
           )}
         </aside>
       </div>
@@ -1769,6 +1798,9 @@ function PlanCard({
             {plan.primaryVibe ? (
               <span className="plan-vibe-chip">{plan.primaryVibe}-led</span>
             ) : null}
+            {plan.tripPersonality ? (
+              <span className="plan-arch-chip">{plan.tripPersonality}</span>
+            ) : null}
           </h3>
           {plan.tagline ? (
             <p className="plan-tagline">{plan.tagline}</p>
@@ -1838,6 +1870,9 @@ function PlanCard({
         <span><b className="cap">{plan.difficulty}</b><small>Difficulty</small></span>
         <span><b className="cap">{plan.pace}</b><small>Pace</small></span>
         <span><b>{hiddenGemCount(plan)}</b><small>Hidden gems</small></span>
+        {plan.seasonFit != null && (
+          <span><b>{plan.seasonFit}/10</b><small>Season fit</small></span>
+        )}
       </div>
       {plan.confidence && (
         <div className="plan-confidence">
@@ -1975,6 +2010,9 @@ function PlanCard({
                     <span className={`badge ${badge.cls}`}>
                       {badge.emoji} {badge.label}
                     </span>
+                  )}
+                  {stop.secret && (
+                    <span className="badge badge-secret">🤫 Safar secret</span>
                   )}
                   {stop.rating != null && (
                     <span className="badge badge-rating">

@@ -147,6 +147,9 @@ export const ItineraryStopSchema = z.object({
   bestTime: z.string().nullable().default(null),
   crowdLevel: z.enum(["low", "medium", "high"]).nullable().default(null),
   photoScore: z.number().int().min(1).max(5).nullable().default(null),
+  // V1.4 (#35): exactly one stop per trip is flagged as the "Safar secret" — a
+  // surprise hidden gem highlighted on the card.
+  secret: z.boolean().default(false),
 });
 export type ItineraryStop = z.infer<typeof ItineraryStopSchema>;
 
@@ -313,6 +316,15 @@ export const GeneratedPlanSchema = z.object({
     .nullable()
     .default(null),
   transport: TransportPlanSchema.nullable().default(null),
+  // ── V1.4 realism + content (all defaulted) ──
+  // Season-fit 0–10 for the travel month (#19); a named trip archetype (#8); and
+  // the destinations that lost, with one reason each (#5) — same list on all 3
+  // plans, rendered once.
+  seasonFit: z.number().min(0).max(10).nullable().default(null),
+  tripPersonality: z.string().default(""),
+  alsoConsidered: z
+    .array(z.object({ name: z.string(), state: z.string(), reason: z.string() }))
+    .default([]),
 });
 export type GeneratedPlan = z.infer<typeof GeneratedPlanSchema>;
 
