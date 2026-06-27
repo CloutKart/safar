@@ -1157,3 +1157,13 @@ a.stop-name:hover { text-decoration: underline; }
 .cond-wx { font-size: 14px; color: var(--ink); margin: 10px 0 6px; }
 .cond-factors { margin: 6px 0; padding-left: 18px; display: flex; flex-direction: column; gap: 3px; font-size: 13px; }
 .cond-note { font-size: 12px; color: var(--muted); margin: 6px 0 0; }
+
+/* Trek exports */
+.trek-exports { background: var(--card); border: 1px solid var(--line); border-radius: 16px; padding: 16px 18px; }
+.tx-row label { display: flex; flex-direction: column; gap: 4px; font-size: 12px; font-weight: 600; color: var(--muted); max-width: 200px; }
+.tx-row input { padding: 8px 10px; border: 1px solid var(--line); border-radius: 10px; background: var(--paper); font-size: 13px; color: var(--ink); }
+.tx-buttons { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+.tx-buttons button, .tx-btn { padding: 9px 14px; border: 1px solid var(--line); border-radius: 10px; background: var(--paper); font-size: 13px; font-weight: 600; color: var(--ink); cursor: pointer; text-decoration: none; display: inline-flex; align-items: center; }
+.tx-buttons button:hover, .tx-btn:hover { border-color: var(--green); }
+.tx-buttons button:disabled { opacity: .6; cursor: progress; }
+.tx-note { font-size: 12px; color: var(--muted); margin: 10px 0 0; }

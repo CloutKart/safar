@@ -14,6 +14,7 @@ import {
 } from "@/lib/trek/enrich";
 import { SunPlan } from "@/components/sun-plan";
 import { TrekConditions } from "@/components/trek-conditions";
+import { TrekExports } from "@/components/trek-exports";
 
 // Major departure hubs we measure proximity from (the Part-4 proximity surface).
 const HUBS = ["Delhi", "Mumbai", "Bangalore", "Kolkata", "Chennai", "Hyderabad", "Pune", "Ahmedabad"];
@@ -368,6 +369,12 @@ export function TrekDetail({ trek }: { trek: Trek }) {
           )}
         </section>
       )}
+
+      {/* Take it with you: calendar / GPX / maps / share */}
+      <section className="trek-section">
+        <h2>Take it with you</h2>
+        <TrekExports trek={trek} />
+      </section>
 
       {/* Emergency — honest, no fabricated contacts */}
       {trek.emergency && (
