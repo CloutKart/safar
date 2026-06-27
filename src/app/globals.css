@@ -1225,3 +1225,12 @@ a.stop-name:hover { text-decoration: underline; }
 .td-foot a { color: var(--green); font-weight: 700; text-decoration: none; }
 .td-empty { margin-top: 18px; color: var(--muted); font-size: 14px; }
 .td-note { margin-top: 16px; font-size: 12px; color: var(--orange); }
+
+/* Landing → Trek Mode hero CTA */
+.hero-trek-cta { display: inline-flex; align-items: center; gap: 14px; margin-top: 28px; padding: 14px 20px; border: 1px solid var(--ink); border-radius: 16px; background: var(--card); text-decoration: none; color: var(--ink); transition: transform .12s ease, box-shadow .12s ease; }
+.hero-trek-cta:hover { transform: translateY(-2px); box-shadow: 0 16px 36px rgba(56,65,51,.16); }
+.htc-icon { font-size: 26px; line-height: 1; }
+.htc-text { display: flex; flex-direction: column; gap: 2px; }
+.htc-text strong { font-size: 15px; font-weight: 800; letter-spacing: -.01em; }
+.htc-text small { font-size: 13px; color: var(--muted); }
+.htc-arrow { font-size: 20px; color: var(--green); font-weight: 800; margin-left: 4px; }

@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { GroupCreator } from "@/components/group-creator";
 
 const steps = [
@@ -49,6 +50,14 @@ export default function Home() {
               <span key={interest}>{interest}</span>
             ))}
           </div>
+          <Link className="hero-trek-cta" href="/treks">
+            <span className="htc-icon" aria-hidden="true">🥾</span>
+            <span className="htc-text">
+              <strong>Just want a trail? Explore Trek Mode</strong>
+              <small>Find a trek by feel — terrain, mood, crowds, where from</small>
+            </span>
+            <span className="htc-arrow" aria-hidden="true">→</span>
+          </Link>
         </div>
         <GroupCreator />
       </section>
