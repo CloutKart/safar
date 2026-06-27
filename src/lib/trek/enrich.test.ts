@@ -3,8 +3,10 @@ import { getSeedTrek } from "@/data/treks";
 import { trekEmbeddingText } from "@/lib/trek/schema";
 import {
   crowdHeatmap,
+  elevationProfile,
   trafficEstimate,
   trekPacking,
+  trekRisk,
   turnaroundPoints,
 } from "@/lib/trek/enrich";
 
@@ -59,5 +61,28 @@ describe("embedding text", () => {
     const text = trekEmbeddingText(getSeedTrek("brahmagiri")!);
     expect(text).toContain("Brahmagiri");
     expect(text.length).toBeGreaterThan(60);
+  });
+});
+
+describe("elevation profile", () => {
+  it("starts near base, peaks at max altitude, and returns to base for out-and-back", () => {
+    const p = elevationProfile(getSeedTrek("triund")!); // out-and-back, 2828 m, 1100 m gain
+    expect(p.length).toBeGreaterThan(2);
+    expect(p[0].m).toBeLessThan(2000); // ~base (1728 m)
+    expect(Math.max(...p.map((x) => x.m))).toBe(2828); // peak = max altitude
+    expect(Math.abs(p[p.length - 1].m - p[0].m)).toBeLessThan(60); // back to base
+  });
+});
+
+describe("trek risk", () => {
+  it("rates an off-season high-altitude expert trek as High and an in-season easy one as Low", () => {
+    expect(trekRisk(getSeedTrek("kanamo-peak")!, 1, null).level).toBe("High");
+    expect(trekRisk(getSeedTrek("deoria-tal")!, 5, null).level).toBe("Low");
+  });
+
+  it("escalates with heavy rain in the forecast", () => {
+    const wet = { lowC: 12, highC: 20, rainPct: 85, typical: false };
+    const r = trekRisk(getSeedTrek("triund")!, 5, wet);
+    expect(r.factors.join(" ")).toMatch(/rain/i);
   });
 });

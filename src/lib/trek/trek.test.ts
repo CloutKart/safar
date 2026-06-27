@@ -93,3 +93,17 @@ describe("recommendTreks (end-to-end, deterministic path)", () => {
     expect(result.nearby.every((n) => n.distanceKm <= 700)).toBe(true);
   });
 });
+
+describe("structured filters", () => {
+  it("keeps the top pick within a distance band + difficulty ceiling", async () => {
+    const res = await recommendTreks({ filters: { distanceKm: { min: 5, max: 12 }, maxDifficulty: "moderate" } });
+    expect(res.usedEmbeddings).toBe(false);
+    expect(res.matches.length).toBeGreaterThan(0);
+    expect(res.matches[0].trek.distanceKm ?? 0).toBeLessThanOrEqual(13);
+  });
+
+  it("ranks a permit-free trek first when permits are to be avoided", async () => {
+    const res = await recommendTreks({ filters: { permit: "avoid" } });
+    expect(res.matches[0].trek.permitRequired).toBe(false);
+  });
+});

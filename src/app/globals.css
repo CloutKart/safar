@@ -1098,3 +1098,62 @@ a.stop-name:hover { text-decoration: underline; }
 .ac-name { font-size: 14px; font-weight: 700; color: var(--r-ink); }
 .ac-name small { font-weight: 400; color: var(--r-muted); }
 .ac-reason { font-size: 12.5px; color: var(--r-muted); }
+
+/* ── Trek Mode: filter sidebar, compare, elevation, conditions ───────────── */
+.trek-search .trek-filter-toggle { background: var(--card) !important; color: var(--ink) !important; border: 1px solid var(--line) !important; }
+.trek-filters { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px 16px; padding: 16px; border: 1px solid var(--line); border-radius: 16px; background: var(--card); margin-top: 12px; }
+.trek-filters label { display: flex; flex-direction: column; gap: 4px; font-size: 12px; font-weight: 600; color: var(--muted); }
+.trek-filters select, .trek-filters input { padding: 8px 10px; border: 1px solid var(--line); border-radius: 10px; background: var(--paper); font-size: 13px; color: var(--ink); }
+.trek-range { display: flex; gap: 6px; }
+.trek-range input { width: 100%; }
+.trek-check { flex-direction: row !important; align-items: center; gap: 8px; }
+.trek-check input { width: auto; }
+.trek-scenery { grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.trek-scenery > span { font-size: 12px; font-weight: 600; color: var(--muted); margin-right: 4px; }
+.trek-scenery button { padding: 6px 11px; border: 1px solid var(--line); border-radius: 99px; background: var(--paper); font-size: 12px; cursor: pointer; color: var(--ink); }
+.trek-scenery button.on { background: var(--green); color: var(--paper); border-color: var(--green); }
+.trek-filter-actions { grid-column: 1 / -1; display: flex; justify-content: flex-end; gap: 8px; }
+.trek-filter-actions button { padding: 9px 16px; border-radius: 10px; border: none; background: var(--green); color: var(--paper); font-weight: 700; cursor: pointer; font-size: 13px; }
+.trek-filter-actions .ghost { background: transparent; color: var(--muted); border: 1px solid var(--line); }
+
+/* Compare selection */
+.trek-card-wrap { position: relative; }
+.trek-card-head { padding-right: 40px; }
+.trek-pick { position: absolute; top: 12px; right: 12px; z-index: 2; width: 28px; height: 28px; border-radius: 8px; border: 1px solid var(--line); background: var(--card); cursor: pointer; font-weight: 800; color: var(--muted); line-height: 1; }
+.trek-pick.on { background: var(--green); color: var(--paper); border-color: var(--green); }
+.trek-compare-bar { position: sticky; bottom: 16px; display: flex; align-items: center; gap: 12px; margin-top: 20px; padding: 12px 18px; border-radius: 14px; background: var(--ink); color: var(--paper); box-shadow: 0 12px 30px rgba(0,0,0,.2); }
+.trek-compare-bar span { font-weight: 600; }
+.trek-compare-bar button { padding: 8px 16px; border-radius: 10px; border: none; background: var(--lime); color: var(--ink); font-weight: 700; cursor: pointer; }
+.trek-compare-bar .ghost { background: transparent; color: var(--paper); border: 1px solid rgba(255,255,255,.4); }
+
+.trek-compare { margin-top: 20px; border: 1px solid var(--line); border-radius: 16px; background: var(--card); overflow: hidden; }
+.tc-head { display: flex; justify-content: space-between; align-items: center; padding: 14px 18px; border-bottom: 1px solid var(--line); }
+.tc-head h3 { margin: 0; font-size: 16px; }
+.tc-head button { background: transparent; border: 1px solid var(--line); border-radius: 8px; padding: 6px 12px; cursor: pointer; font-size: 13px; }
+.tc-grid { display: grid; gap: 1px; background: var(--line); padding: 1px; }
+.tc-corner, .tc-name, .tc-label, .tc-cell { background: var(--card); padding: 9px 12px; font-size: 13px; }
+.tc-name { font-weight: 800; text-decoration: none; color: var(--green); }
+.tc-label { font-weight: 600; color: var(--muted); }
+.tc-cell { text-align: center; }
+.tc-cell.cap { text-transform: capitalize; }
+.tc-best { background: rgba(31,107,79,.1); font-weight: 700; }
+.tc-stars { letter-spacing: 1px; color: var(--green); }
+
+/* Elevation profile */
+.elev-chart svg { width: 100%; height: 150px; display: block; }
+.elev-area { fill: rgba(31,107,79,.14); }
+.elev-line { stroke: var(--green); stroke-width: 2; vector-effect: non-scaling-stroke; }
+.elev-peak { fill: var(--orange); }
+.elev-axis { display: flex; justify-content: space-between; font-size: 11px; color: var(--muted); margin-top: 4px; }
+
+/* Conditions + risk */
+.trek-conditions { background: var(--card); border: 1px solid var(--line); border-radius: 16px; padding: 16px 18px; }
+.cond-head { display: flex; justify-content: space-between; align-items: center; gap: 10px; }
+.cond-head h3 { margin: 0; font-size: 17px; }
+.risk-chip { padding: 4px 12px; border-radius: 99px; font-size: 12px; font-weight: 800; white-space: nowrap; }
+.risk-low { background: rgba(46,166,110,.18); color: #1f6b4f; }
+.risk-moderate { background: rgba(243,195,75,.22); color: #8a6d12; }
+.risk-high { background: rgba(230,111,60,.18); color: var(--orange); }
+.cond-wx { font-size: 14px; color: var(--ink); margin: 10px 0 6px; }
+.cond-factors { margin: 6px 0; padding-left: 18px; display: flex; flex-direction: column; gap: 3px; font-size: 13px; }
+.cond-note { font-size: 12px; color: var(--muted); margin: 6px 0 0; }

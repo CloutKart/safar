@@ -6,11 +6,14 @@ import {
   CROWD_COLS,
   CROWD_ROWS,
   crowdHeatmap,
+  elevationProfile,
   trafficEstimate,
   trekPacking,
   turnaroundPoints,
+  type ElevationPoint,
 } from "@/lib/trek/enrich";
 import { SunPlan } from "@/components/sun-plan";
+import { TrekConditions } from "@/components/trek-conditions";
 
 // Major departure hubs we measure proximity from (the Part-4 proximity surface).
 const HUBS = ["Delhi", "Mumbai", "Bangalore", "Kolkata", "Chennai", "Hyderabad", "Pune", "Ahmedabad"];
@@ -40,6 +43,39 @@ function Dots({ value }: { value: number }) {
   );
 }
 
+// Inline SVG elevation profile (distance x-axis, elevation y-axis), summit marked.
+function ElevationChart({ points }: { points: ElevationPoint[] }) {
+  if (points.length < 2) return null;
+  const W = 640;
+  const H = 150;
+  const PAD = 4;
+  const kms = points.map((p) => p.km);
+  const ms = points.map((p) => p.m);
+  const maxKm = Math.max(...kms);
+  const minM = Math.min(...ms);
+  const maxM = Math.max(...ms);
+  const span = Math.max(maxM - minM, 1);
+  const x = (km: number) => PAD + (km / maxKm) * (W - 2 * PAD);
+  const y = (m: number) => PAD + (1 - (m - minM) / span) * (H - 2 * PAD);
+  const line = points.map((p) => `${x(p.km)},${y(p.m)}`).join(" ");
+  const area = `${PAD},${H - PAD} ${line} ${W - PAD},${H - PAD}`;
+  const peak = points.reduce((a, b) => (b.m > a.m ? b : a));
+  return (
+    <div className="elev-chart">
+      <svg viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none" role="img" aria-label="Estimated elevation profile">
+        <polygon points={area} className="elev-area" />
+        <polyline points={line} className="elev-line" fill="none" />
+        <circle cx={x(peak.km)} cy={y(peak.m)} r={4} className="elev-peak" />
+      </svg>
+      <div className="elev-axis">
+        <span>{minM} m</span>
+        <span>↑ {peak.m} m @ {peak.km} km</span>
+        <span>{maxKm} km</span>
+      </div>
+    </div>
+  );
+}
+
 function nearestHubs(coords: LatLng | null) {
   if (!coords) return [];
   return HUBS.map((city) => {
@@ -60,6 +96,7 @@ export function TrekDetail({ trek }: { trek: Trek }) {
   const turnarounds = turnaroundPoints(trek);
   const heatmap = crowdHeatmap(trek);
   const traffic = trafficEstimate(trek);
+  const elevation = elevationProfile(trek);
 
   return (
     <article className="trek-detail">
@@ -80,6 +117,13 @@ export function TrekDetail({ trek }: { trek: Trek }) {
       </header>
 
       {trek.description && <p className="trek-story">{trek.description}</p>}
+
+      {/* Live conditions + deterministic risk score */}
+      {coords && (
+        <section className="trek-section">
+          <TrekConditions trek={trek} coords={coords} />
+        </section>
+      )}
 
       {/* Difficulty — the four axes + the where-it-gets-hard graph */}
       {(trek.difficultyViz || trek.difficultyProfile.length > 0) && (
@@ -118,6 +162,15 @@ export function TrekDetail({ trek }: { trek: Trek }) {
               experienced {trek.completionConfidence.experiencedPct}%
             </p>
           )}
+        </section>
+      )}
+
+      {/* Estimated elevation profile */}
+      {elevation.length > 1 && (
+        <section className="trek-section">
+          <h2>Elevation profile</h2>
+          <p className="trek-sub">Estimated from distance, gain &amp; summit position — not survey data.</p>
+          <ElevationChart points={elevation} />
         </section>
       )}
 

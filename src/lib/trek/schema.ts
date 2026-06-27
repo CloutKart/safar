@@ -198,6 +198,11 @@ export type Trek = z.infer<typeof TrekSchema>;
 // The structured shape the recommender re-ranks on. `dna` holds only the
 // dimensions the user actually expressed (partial target, 0–10). Produced by the
 // LLM parser OR the deterministic keyword fallback.
+const RangeSchema = z.object({
+  min: z.number().nonnegative().nullable().default(null),
+  max: z.number().nonnegative().nullable().default(null),
+});
+
 export const TrekIntentSchema = z.object({
   dna: TrekDnaPartialSchema.default({}),
   nearCity: z.string().nullable().default(null),
@@ -206,8 +211,32 @@ export const TrekIntentSchema = z.object({
   suitability: z.array(z.enum(SUITABILITY_TAGS)).default([]),
   // The query implies a short/weekend window → tighten the proximity radius.
   weekend: z.boolean().default(false),
+  // ── Structured filters from the sidebar (all optional) ──
+  distanceKm: RangeSchema.nullable().default(null),
+  elevationGainM: RangeSchema.nullable().default(null),
+  transport: z.enum(["public", "car", "taxi"]).nullable().default(null),
+  permit: z.enum(["ok", "avoid"]).nullable().default(null),
+  camping: z.boolean().nullable().default(null),
 });
 export type TrekIntent = z.infer<typeof TrekIntentSchema>;
+
+// What the filter sidebar sends — every field OPTIONAL with NO defaults, so an
+// absent key never overwrites a value the NL query already inferred (the merge
+// only applies keys the user actually set).
+export const TrekFiltersSchema = z.object({
+  dna: TrekDnaPartialSchema.optional(),
+  nearCity: z.string().nullable().optional(),
+  month: z.number().int().min(1).max(12).nullable().optional(),
+  maxDifficulty: TrailDifficultySchema.nullable().optional(),
+  suitability: z.array(z.enum(SUITABILITY_TAGS)).optional(),
+  weekend: z.boolean().optional(),
+  distanceKm: RangeSchema.nullable().optional(),
+  elevationGainM: RangeSchema.nullable().optional(),
+  transport: z.enum(["public", "car", "taxi"]).nullable().optional(),
+  permit: z.enum(["ok", "avoid"]).nullable().optional(),
+  camping: z.boolean().nullable().optional(),
+});
+export type TrekFilters = z.infer<typeof TrekFiltersSchema>;
 
 // Trek's DNA as the fixed-order numeric vector (for similarity / embeddings text).
 export function dnaVector(dna: TrekDna): number[] {

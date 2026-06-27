@@ -6,6 +6,7 @@ import {
   TrekIntentSchema,
   type Trek,
   type TrekDnaDim,
+  type TrekFilters,
   type TrekIntent,
 } from "@/lib/trek/schema";
 import { listTreks, matchTreks } from "@/lib/trek/store";
@@ -100,6 +101,7 @@ async function llmIntent(query: string): Promise<TrekIntent | null> {
 // keyword fills the gaps) — so we never lose a signal the deterministic path caught.
 function mergeIntent(base: TrekIntent, llm: TrekIntent): TrekIntent {
   return {
+    ...base,
     dna: { ...base.dna, ...llm.dna },
     nearCity: llm.nearCity ?? base.nearCity,
     month: llm.month ?? base.month,
@@ -114,6 +116,31 @@ export async function parseTrekQuery(query: string): Promise<TrekIntent> {
   const llm = await llmIntent(query);
   return llm ? mergeIntent(base, llm) : base;
 }
+
+// Overlay the sidebar's explicit filters onto the NL-parsed intent — only the
+// keys the user actually set (sparse), so a filter never wipes an inferred value.
+function mergeFilters(base: TrekIntent, filters?: TrekFilters): TrekIntent {
+  if (!filters) return base;
+  const out: TrekIntent = { ...base };
+  if (filters.nearCity !== undefined) out.nearCity = filters.nearCity;
+  if (filters.month !== undefined) out.month = filters.month;
+  if (filters.maxDifficulty !== undefined) out.maxDifficulty = filters.maxDifficulty;
+  if (filters.weekend !== undefined) out.weekend = filters.weekend;
+  if (filters.distanceKm !== undefined) out.distanceKm = filters.distanceKm;
+  if (filters.elevationGainM !== undefined) out.elevationGainM = filters.elevationGainM;
+  if (filters.transport !== undefined) out.transport = filters.transport;
+  if (filters.permit !== undefined) out.permit = filters.permit;
+  if (filters.camping !== undefined) out.camping = filters.camping;
+  out.dna = { ...base.dna, ...(filters.dna ?? {}) };
+  out.suitability = [...new Set([...base.suitability, ...(filters.suitability ?? [])])];
+  if (filters.camping === true) {
+    out.dna = { ...out.dna, camping: Math.max(out.dna.camping ?? 0, 9) };
+    if (!out.suitability.includes("camping")) out.suitability = [...out.suitability, "camping"];
+  }
+  return out;
+}
+
+const emptyIntent = (): TrekIntent => TrekIntentSchema.parse({});
 
 // ── Scoring factors (each 0–1) ───────────────────────────────────────────────
 function dnaMatch(intent: TrekIntent, trek: Trek): number {
@@ -147,6 +174,21 @@ function proximityScore(distanceKm: number | null, weekend: boolean): number {
   return Math.max(0, Math.min(1, 1 - Math.max(0, distanceKm - freeRadius) / falloff));
 }
 
+// 1 when inside the range, graded down by how far outside (null = not constrained).
+function rangeFit(
+  value: number | null,
+  range: { min: number | null; max: number | null } | null,
+): number | null {
+  if (!range || (range.min == null && range.max == null)) return null;
+  if (value == null) return 0.6; // unknown trek value → mild
+  const min = range.min ?? 0;
+  const max = range.max ?? Number.POSITIVE_INFINITY;
+  if (value >= min && value <= max) return 1;
+  const dist = value < min ? min - value : value - max;
+  const scale = Math.max(max === Number.POSITIVE_INFINITY ? min : max - min, 1);
+  return Math.max(0.15, 1 - dist / scale);
+}
+
 function hardFit(intent: TrekIntent, trek: Trek): number {
   let parts = 0;
   let score = 0;
@@ -161,6 +203,19 @@ function hardFit(intent: TrekIntent, trek: Trek): number {
     parts += 1;
     const have = intent.suitability.filter((t) => trek.suitability.includes(t)).length;
     score += have / intent.suitability.length;
+  }
+  const distFit = rangeFit(trek.distanceKm, intent.distanceKm);
+  if (distFit != null) { parts += 1; score += distFit; }
+  const elevFit = rangeFit(trek.elevationGainM, intent.elevationGainM);
+  if (elevFit != null) { parts += 1; score += elevFit; }
+  if (intent.permit) {
+    parts += 1;
+    score += intent.permit === "avoid" ? (trek.permitRequired ? 0.1 : 1) : 1;
+  }
+  if (intent.transport === "public") {
+    // Remote, guide-required treks are hard to reach without your own vehicle.
+    parts += 1;
+    score += trek.guideRecommended ? 0.5 : 1;
   }
   return parts === 0 ? 1 : score / parts;
 }
@@ -211,6 +266,10 @@ function buildWhy(intent: TrekIntent, trek: Trek, distanceKm: number | null): st
   if (intent.maxDifficulty && DIFFICULTY_RANK[trek.difficulty] <= DIFFICULTY_RANK[intent.maxDifficulty]) {
     why.push(`${cap(trek.difficulty)} — within your comfort`);
   }
+  if (intent.permit === "avoid" && !trek.permitRequired) why.push("No permit needed");
+  if (intent.distanceKm && trek.distanceKm != null && rangeFit(trek.distanceKm, intent.distanceKm) === 1) {
+    why.push(`${trek.distanceKm} km — fits your range`);
+  }
   if (why.length === 0) why.push(`${cap(trek.difficulty)} ${trek.routeType ?? "trek"} in ${trek.region || trek.state}`);
   return why.slice(0, 3);
 }
@@ -221,7 +280,8 @@ export function scoreTrek(
   origin: LatLng | null,
 ): { score: number; distanceKm: number | null } {
   const distanceKm = distanceKmFor(trek, origin);
-  const prox = proximityScore(distanceKm, intent.weekend);
+  // Public transport → treat reach like a weekend (tighter radius matters more).
+  const prox = proximityScore(distanceKm, intent.weekend || intent.transport === "public");
   let score =
     0.35 * hardFit(intent, trek) +
     0.2 * seasonFit(trek, intent.month) +
@@ -237,12 +297,19 @@ export function scoreTrek(
   return { score, distanceKm };
 }
 
-export async function recommendTreks(query: string, limit = 8): Promise<TrekSearchResult> {
-  const intent = await parseTrekQuery(query);
+export async function recommendTreks(
+  input: string | { query?: string; filters?: TrekFilters },
+  limit = 8,
+): Promise<TrekSearchResult> {
+  const opts = typeof input === "string" ? { query: input } : input;
+  const query = opts.query?.trim() || "";
+
+  const base = query ? await parseTrekQuery(query) : emptyIntent();
+  const intent = mergeFilters(base, opts.filters);
   const origin = intent.nearCity ? lookupCoords(intent.nearCity) : null;
 
-  // Recall: embeddings + pgvector when available, else the full corpus.
-  const embedding = await generateEmbedding(query);
+  // Recall: embeddings + pgvector when there's NL text, else the full corpus.
+  const embedding = query ? await generateEmbedding(query) : null;
   const recalled = await matchTreks(embedding, 24);
   const usedEmbeddings = recalled != null;
   const candidates = recalled ?? (await listTreks());
