@@ -1167,3 +1167,36 @@ a.stop-name:hover { text-decoration: underline; }
 .tx-buttons button:hover, .tx-btn:hover { border-color: var(--green); }
 .tx-buttons button:disabled { opacity: .6; cursor: progress; }
 .tx-note { font-size: 12px; color: var(--muted); margin: 10px 0 0; }
+
+/* Trail reports */
+.trek-reports { background: var(--card); border: 1px solid var(--line); border-radius: 16px; padding: 16px 18px; }
+.tr-head { display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap; }
+.tr-head h3 { margin: 0; font-size: 17px; }
+.tr-conf { padding: 4px 12px; border-radius: 99px; font-size: 12px; font-weight: 700; white-space: nowrap; }
+.tr-fresh { background: rgba(46,166,110,.18); color: #1f6b4f; }
+.tr-recent { background: rgba(216,239,124,.3); color: #5b6e1a; }
+.tr-stale { background: rgba(243,195,75,.22); color: #8a6d12; }
+.tr-none { background: rgba(24,52,45,.06); color: var(--muted); }
+.tr-list { list-style: none; padding: 0; margin: 14px 0 6px; display: flex; flex-direction: column; gap: 12px; }
+.tr-list li { padding-bottom: 12px; border-bottom: 1px solid var(--line); }
+.tr-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; font-size: 12px; }
+.tr-status { padding: 2px 9px; border-radius: 7px; font-weight: 700; text-transform: capitalize; }
+.status-clear { background: rgba(46,166,110,.18); color: #1f6b4f; }
+.status-muddy { background: rgba(150,110,60,.18); color: #6e4f2a; }
+.status-snow { background: rgba(120,160,210,.2); color: #2f5f8f; }
+.status-blocked, .status-washed-out { background: rgba(230,111,60,.18); color: var(--orange); }
+.tr-water { color: var(--muted); }
+.tr-rating { color: var(--green); letter-spacing: 1px; }
+.tr-when { color: var(--muted); margin-left: auto; }
+.tr-note { margin: 6px 0 0; font-size: 14px; line-height: 1.5; }
+.tr-empty { font-size: 14px; color: var(--muted); margin: 12px 0; }
+.tr-add { padding: 9px 16px; border: 1px dashed var(--line); border-radius: 10px; background: transparent; font-size: 13px; font-weight: 600; color: var(--green); cursor: pointer; margin-top: 4px; }
+.tr-form { margin-top: 12px; display: flex; flex-direction: column; gap: 10px; }
+.tr-form-row { display: flex; flex-wrap: wrap; gap: 8px; align-items: flex-end; }
+.tr-form label { display: flex; flex-direction: column; gap: 4px; font-size: 12px; font-weight: 600; color: var(--muted); }
+.tr-form select, .tr-form input { padding: 8px 10px; border: 1px solid var(--line); border-radius: 10px; background: var(--paper); font-size: 13px; color: var(--ink); }
+.tr-form > input { width: 100%; }
+.tr-form-row input { flex: 1 1 160px; }
+.tr-form-row button { padding: 9px 16px; border: none; border-radius: 10px; background: var(--green); color: var(--paper); font-weight: 700; cursor: pointer; font-size: 13px; }
+.tr-form-row button.ghost { background: transparent; color: var(--muted); border: 1px solid var(--line); }
+.tr-disclaimer { font-size: 12px; color: var(--muted); margin: 10px 0 0; }

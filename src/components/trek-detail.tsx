@@ -15,6 +15,7 @@ import {
 import { SunPlan } from "@/components/sun-plan";
 import { TrekConditions } from "@/components/trek-conditions";
 import { TrekExports } from "@/components/trek-exports";
+import { TrekReports } from "@/components/trek-reports";
 
 // Major departure hubs we measure proximity from (the Part-4 proximity surface).
 const HUBS = ["Delhi", "Mumbai", "Bangalore", "Kolkata", "Chennai", "Hyderabad", "Pune", "Ahmedabad"];
@@ -125,6 +126,11 @@ export function TrekDetail({ trek }: { trek: Trek }) {
           <TrekConditions trek={trek} coords={coords} />
         </section>
       )}
+
+      {/* Crowdsourced trail reports (72h) */}
+      <section className="trek-section">
+        <TrekReports slug={trek.slug} />
+      </section>
 
       {/* Difficulty — the four axes + the where-it-gets-hard graph */}
       {(trek.difficultyViz || trek.difficultyProfile.length > 0) && (
@@ -385,8 +391,8 @@ export function TrekDetail({ trek }: { trek: Trek }) {
             {trek.emergency.evacNote}
           </p>
           <p className="trek-condition">
-            🩹 Trail condition: <strong>curated baseline</strong> — no live trekker
-            reports yet (crowdsourced reports are coming).
+            🩹 Latest trail conditions are in the community reports above (they expire
+            after 72h). Always confirm critical conditions locally.
           </p>
           <p className="trek-verify">
             ⚠️ These are curated, community-informed estimates — verify current
