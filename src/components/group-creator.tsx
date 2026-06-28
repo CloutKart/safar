@@ -6,8 +6,8 @@ interface GroupResult {
   slug: string;
 }
 
-export function GroupCreator() {
-  const [subject, setSubject] = useState("");
+export function GroupCreator({ initialSubject = "" }: { initialSubject?: string }) {
+  const [subject, setSubject] = useState(initialSubject);
   const [result, setResult] = useState<GroupResult | null>(null);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);

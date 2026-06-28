@@ -44,7 +44,7 @@ function captionFor(gem: Gem | undefined, fallback: string): string {
 }
 
 // Free fallback: a lead image from Wikipedia for a place/city name.
-async function wikiImage(title: string): Promise<string | null> {
+export async function wikiImage(title: string): Promise<string | null> {
   const url = `https://en.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(title)}`;
   const response = await fetch(url, {
     headers: { "User-Agent": PHOTO_UA, Accept: "application/json" },

@@ -2,6 +2,12 @@
 
 import { Fragment, type ReactNode } from "react";
 import type { Trek } from "@/lib/trek/schema";
+import {
+  terrainFootwear,
+  travelEfficiency,
+  waterPlan,
+  worthItScore,
+} from "@/lib/trek/enrich";
 
 const SHORT_MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 const season = (months: number[]) => (months.length ? months.map((m) => SHORT_MONTHS[m - 1]).join(", ") : "—");
@@ -37,6 +43,26 @@ const ROWS: Row[] = [
   { label: "Waterfalls", cell: (t) => <Stars n10={t.dna.waterfalls} />, score: (t) => t.dna.waterfalls, best: "max" },
   { label: "Sunrise / photo", cell: (t) => <Stars n10={t.dna.photography} />, score: (t) => t.dna.photography, best: "max" },
   { label: "Camping", cell: (t) => <Stars n10={t.dna.camping} />, score: (t) => t.dna.camping, best: "max" },
+  {
+    label: "Scenic payoff",
+    cell: (t) => `${t.scenicDensity?.composite ?? t.dna.views}/10`,
+    score: (t) => t.scenicDensity?.composite ?? t.dna.views,
+    best: "max",
+  },
+  {
+    label: "Worth-it",
+    cell: (t) => `${worthItScore(t, travelEfficiency(t, null)).score}/100`,
+    score: (t) => worthItScore(t, travelEfficiency(t, null)).score,
+    best: "max",
+  },
+  {
+    label: "Water carry",
+    cell: (t) => `~${waterPlan(t).carryLitres} L`,
+    score: (t) => waterPlan(t).carryLitres,
+    best: "min",
+  },
+  { label: "Trailhead", cell: (t) => t.trailhead || "Verify" },
+  { label: "Footwear", cell: (t) => terrainFootwear(t)[0] },
 ];
 
 export function TrekCompare({ treks, onClose }: { treks: Trek[]; onClose: () => void }) {

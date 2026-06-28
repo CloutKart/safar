@@ -7,16 +7,29 @@ import {
   CROWD_ROWS,
   crowdHeatmap,
   elevationProfile,
+  emotionalTrekLine,
+  landmarkDescription,
+  paceEstimates,
+  photographyGuide,
+  terrainFootwear,
   trafficEstimate,
-  trekPacking,
+  trailheadLogistics,
+  travelEfficiency,
+  trekMatchSummary,
   turnaroundPoints,
-  type ElevationPoint,
+  waterPlan,
+  wildlifeGuide,
+  worthItScore,
 } from "@/lib/trek/enrich";
 import { googleMapsUrl, osmUrl } from "@/lib/trek/exports";
 import { SunPlan } from "@/components/sun-plan";
 import { TrekConditions } from "@/components/trek-conditions";
 import { TrekExports } from "@/components/trek-exports";
 import { TrekReports } from "@/components/trek-reports";
+import { TrekHero } from "@/components/trek-hero";
+import { InteractiveElevation } from "@/components/interactive-elevation";
+import { TrekPackingAssistant } from "@/components/trek-packing-assistant";
+import { TrekMemory } from "@/components/trek-memory";
 
 // Major departure hubs we measure proximity from (the Part-4 proximity surface).
 const HUBS = ["Delhi", "Mumbai", "Bangalore", "Kolkata", "Chennai", "Hyderabad", "Pune", "Ahmedabad"];
@@ -46,39 +59,6 @@ function Dots({ value }: { value: number }) {
   );
 }
 
-// Inline SVG elevation profile (distance x-axis, elevation y-axis), summit marked.
-function ElevationChart({ points }: { points: ElevationPoint[] }) {
-  if (points.length < 2) return null;
-  const W = 640;
-  const H = 150;
-  const PAD = 4;
-  const kms = points.map((p) => p.km);
-  const ms = points.map((p) => p.m);
-  const maxKm = Math.max(...kms);
-  const minM = Math.min(...ms);
-  const maxM = Math.max(...ms);
-  const span = Math.max(maxM - minM, 1);
-  const x = (km: number) => PAD + (km / maxKm) * (W - 2 * PAD);
-  const y = (m: number) => PAD + (1 - (m - minM) / span) * (H - 2 * PAD);
-  const line = points.map((p) => `${x(p.km)},${y(p.m)}`).join(" ");
-  const area = `${PAD},${H - PAD} ${line} ${W - PAD},${H - PAD}`;
-  const peak = points.reduce((a, b) => (b.m > a.m ? b : a));
-  return (
-    <div className="elev-chart">
-      <svg viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none" role="img" aria-label="Estimated elevation profile">
-        <polygon points={area} className="elev-area" />
-        <polyline points={line} className="elev-line" fill="none" />
-        <circle cx={x(peak.km)} cy={y(peak.m)} r={4} className="elev-peak" />
-      </svg>
-      <div className="elev-axis">
-        <span>{minM} m</span>
-        <span>↑ {peak.m} m @ {peak.km} km</span>
-        <span>{maxKm} km</span>
-      </div>
-    </div>
-  );
-}
-
 function nearestHubs(coords: LatLng | null) {
   if (!coords) return [];
   return HUBS.map((city) => {
@@ -90,36 +70,70 @@ function nearestHubs(coords: LatLng | null) {
     .slice(0, 3);
 }
 
-export function TrekDetail({ trek }: { trek: Trek }) {
+export function TrekDetail({
+  trek,
+  heroImageUrl,
+}: {
+  trek: Trek;
+  heroImageUrl: string | null;
+}) {
   const coords = trek.trailheadCoords;
   const hubs = nearestHubs(coords);
   const destination = destinations.find((d) => d.slug === trek.destinationSlug);
   const hoursToViewpoint = Math.min(Math.max((trek.durationHours ?? 4) / 2, 1), 4);
-  const packing = trekPacking(trek);
   const turnarounds = turnaroundPoints(trek);
   const heatmap = crowdHeatmap(trek);
   const traffic = trafficEstimate(trek);
   const elevation = elevationProfile(trek);
+  const efficiency = travelEfficiency(trek, hubs[0]?.km ?? null);
+  const worth = worthItScore(trek, efficiency);
+  const paces = paceEstimates(trek);
+  const wildlife = wildlifeGuide(trek);
+  const photoGuide = photographyGuide(trek);
+  const footwear = terrainFootwear(trek);
+  const hydration = waterPlan(trek);
+  const logistics = trailheadLogistics(trek);
 
   return (
     <article className="trek-detail">
-      <header className="trek-detail-head">
-        <p className="eyebrow">{trek.region || trek.state}</p>
-        <h1>{trek.name}</h1>
-        <p className="trek-detail-blurb">{trek.blurb}</p>
-        <div className="trek-stats">
-          <span className={`trek-grade grade-${trek.difficulty}`}>{trek.difficulty}</span>
-          {trek.distanceKm != null && <span>{trek.distanceKm} km</span>}
-          {trek.elevationGainM != null && <span>{trek.elevationGainM} m gain</span>}
-          {trek.maxAltitudeM != null && <span>{trek.maxAltitudeM} m max</span>}
-          {trek.durationHours != null && <span>~{trek.durationHours} h</span>}
-          {trek.routeType && <span>{trek.routeType}</span>}
-          {trek.permitRequired && <span className="flag">permit</span>}
-          {trek.guideRecommended && <span className="flag">guide advised</span>}
-        </div>
-      </header>
+      <TrekHero
+        trek={trek}
+        imageUrl={heroImageUrl}
+        emotionalLine={emotionalTrekLine(trek)}
+      />
 
-      {trek.description && <p className="trek-story">{trek.description}</p>}
+      <section className="trek-section trek-ai-summary">
+        <p className="eyebrow">Why Safar thinks this trek works</p>
+        <h2>{trekMatchSummary(trek)}</h2>
+        {trek.description && <p>{trek.description}</p>}
+      </section>
+
+      <section className="trek-section trek-decision-grid">
+        <div className="decision-card">
+          <span>Travel efficiency</span>
+          <strong>{efficiency.score}<small>/100</small></strong>
+          <p>{efficiency.verdict}</p>
+          <small>~{efficiency.travelHours.toFixed(1)}h approach from {hubs[0]?.city ?? "nearest hub"} · ~{efficiency.trekHours}h trail · {efficiency.payoff}/10 payoff</small>
+        </div>
+        <div className="decision-card worth-card">
+          <span>Worth-it meter</span>
+          <strong>{worth.score}<small>/100</small></strong>
+          <p>{worth.label}</p>
+          <small>{worth.reasons.join(" · ")}</small>
+        </div>
+        <div className="decision-card pace-card">
+          <span>Pace calculator</span>
+          <div className="pace-options">
+            {paces.map((pace) => (
+              <div key={pace.label}>
+                <strong>{pace.hours}h</strong>
+                <b>{pace.label}</b>
+                <small>{pace.note}</small>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
 
       {/* Live conditions + deterministic risk score */}
       {coords && (
@@ -176,21 +190,33 @@ export function TrekDetail({ trek }: { trek: Trek }) {
       {/* Estimated elevation profile */}
       {elevation.length > 1 && (
         <section className="trek-section">
-          <h2>Elevation profile</h2>
-          <p className="trek-sub">Estimated from distance, gain &amp; summit position — not survey data.</p>
-          <ElevationChart points={elevation} />
+          <h2>Interactive elevation profile</h2>
+          <p className="trek-sub">Hover, drag or use the slider to inspect effort along the route. Estimated from distance, gain and summit position — not DEM or survey data.</p>
+          <InteractiveElevation points={elevation} />
         </section>
       )}
 
       {/* Km-by-km timeline */}
       {trek.timeline.length > 0 && (
         <section className="trek-section">
-          <h2>The trail, km by km</h2>
+          <h2>Animated trail timeline</h2>
           <ol className="trek-timeline">
             {trek.timeline.map((w, i) => (
-              <li key={i} className={`tl-${w.type}`}>
+              <li key={i} className={`tl-${w.type}`} style={{ animationDelay: `${i * 90}ms` }}>
+                {w.photoUrl && (
+                  <span
+                    className="tl-photo"
+                    style={{ backgroundImage: `url("${w.photoUrl.replaceAll('"', "%22")}")` }}
+                    role="img"
+                    aria-label={`${w.label} trail landmark`}
+                  />
+                )}
+                <span className="tl-icon" aria-hidden="true">
+                  {w.type === "trailhead" ? "◉" : w.type === "forest" ? "♧" : w.type === "waterfall" || w.type === "water" || w.type === "stream" ? "≈" : w.type === "summit" || w.type === "pass" ? "△" : w.type === "village" ? "⌂" : "•"}
+                </span>
                 <span className="tl-km">{w.km} km</span>
                 <span className="tl-label">{w.label}</span>
+                <span className="tl-description">{w.description || landmarkDescription(w.type)}</span>
               </li>
             ))}
           </ol>
@@ -281,6 +307,55 @@ export function TrekDetail({ trek }: { trek: Trek }) {
         )}
       </section>
 
+      <section className="trek-section trek-companion-grid">
+        <div className="companion-card water-card">
+          <p className="eyebrow">Water planner</p>
+          <h2>Carry about {hydration.carryLitres} litres</h2>
+          {hydration.refillPoints.length > 0 ? (
+            <ul>
+              {hydration.refillPoints.map((point) => <li key={point}>{point}</li>)}
+            </ul>
+          ) : (
+            <p>No reliable refill point is mapped in the current trail record.</p>
+          )}
+          <small>{hydration.warning}</small>
+        </div>
+        <div className="companion-card">
+          <p className="eyebrow">Footwear call</p>
+          <h2>Dress for the ground</h2>
+          <ul>
+            {footwear.map((item) => <li key={item}>{item}</li>)}
+          </ul>
+          <small>Terrain percentages are curated estimates; recent weather can change the surface completely.</small>
+        </div>
+      </section>
+
+      <section className="trek-section trek-two-col">
+        <div>
+          <h2>Wildlife likelihood</h2>
+          <div className="wildlife-list">
+            {wildlife.map((item) => (
+              <article key={item.label}>
+                <span className={`likelihood likelihood-${item.probability.toLowerCase()}`}>{item.probability}</span>
+                <h3>{item.label}</h3>
+                <p>{item.note}</p>
+              </article>
+            ))}
+          </div>
+        </div>
+        <div>
+          <h2>Photography guide</h2>
+          <div className="photo-guide">
+            {photoGuide.map((item) => (
+              <article key={item.moment}>
+                <strong>{item.moment}</strong>
+                <p>{item.guidance}</p>
+              </article>
+            ))}
+          </div>
+        </div>
+      </section>
+
       {/* Crowd heatmap + traffic */}
       <section className="trek-section">
         <h2>When it&apos;s busy</h2>
@@ -310,25 +385,11 @@ export function TrekDetail({ trek }: { trek: Trek }) {
         </p>
       </section>
 
-      {/* Dynamic, condition-aware packing */}
-      {packing.length > 0 && (
-        <section className="trek-section">
-          <h2>What to pack</h2>
-          <p className="trek-sub">Tuned to this trail&apos;s terrain, altitude and season.</p>
-          <div className="pack-groups">
-            {packing.map((g) => (
-              <div className="pack-group" key={g.title}>
-                <h3>{g.title}</h3>
-                <ul>
-                  {g.items.map((item) => (
-                    <li key={item}>{item}</li>
-                  ))}
-                </ul>
-              </div>
-            ))}
-          </div>
-        </section>
-      )}
+      <section className="trek-section">
+        <h2>AI packing assistant</h2>
+        <p className="trek-sub">Tune the checklist, mark items as packed, and keep the conservative defaults.</p>
+        <TrekPackingAssistant trek={trek} />
+      </section>
 
       {/* Full Trek DNA */}
       <section className="trek-section">
@@ -372,6 +433,20 @@ export function TrekDetail({ trek }: { trek: Trek }) {
         </section>
       )}
 
+      <section className="trek-section">
+        <h2>Trailhead logistics</h2>
+        <p className="trek-sub">Known facts are separated from estimates and items that must be verified locally.</p>
+        <div className="logistics-grid">
+          {logistics.map((item) => (
+            <article key={item.label}>
+              <span className={`confidence-label confidence-${item.confidence.toLowerCase()}`}>{item.confidence}</span>
+              <strong>{item.label}</strong>
+              <p>{item.value}</p>
+            </article>
+          ))}
+        </div>
+      </section>
+
       {/* Proximity + trip integration teaser */}
       {(hubs.length > 0 || destination) && (
         <section className="trek-section trek-integrate">
@@ -391,11 +466,20 @@ export function TrekDetail({ trek }: { trek: Trek }) {
               {destination.highlights?.length
                 ? ` — ${destination.highlights.slice(0, 2).join(", ")}.`
                 : "."}{" "}
-              <Link href="/">Plan a full Safar trip around this trek →</Link>
+              <Link href={`/?trek=${encodeURIComponent(trek.name)}#top`}>
+                Plan stays, cafés and nearby attractions around this trek →
+              </Link>
             </p>
           )}
         </section>
       )}
+
+      <section className="trek-section trek-memory-section">
+        <p className="eyebrow">After the trail</p>
+        <h2>Make a trek memory</h2>
+        <p className="trek-sub">Turn the route stats, your notes and selected photos into a private hiking journal.</p>
+        <TrekMemory trek={trek} />
+      </section>
 
       {/* Take it with you: calendar / GPX / maps / share */}
       <section className="trek-section">

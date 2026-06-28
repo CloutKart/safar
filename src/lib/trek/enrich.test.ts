@@ -4,10 +4,20 @@ import { trekEmbeddingText } from "@/lib/trek/schema";
 import {
   crowdHeatmap,
   elevationProfile,
+  emotionalTrekLine,
+  paceEstimates,
+  photographyGuide,
+  terrainFootwear,
   trafficEstimate,
+  trailheadLogistics,
+  travelEfficiency,
+  trekMatchSummary,
   trekPacking,
   trekRisk,
   turnaroundPoints,
+  waterPlan,
+  wildlifeGuide,
+  worthItScore,
 } from "@/lib/trek/enrich";
 
 const flat = (groups: ReturnType<typeof trekPacking>) => groups.flatMap((g) => g.items).join(" | ");
@@ -75,8 +85,8 @@ describe("elevation profile", () => {
 });
 
 describe("trek risk", () => {
-  it("rates an off-season high-altitude expert trek as High and an in-season easy one as Low", () => {
-    expect(trekRisk(getSeedTrek("kanamo-peak")!, 1, null).level).toBe("High");
+  it("rates an off-season high-altitude expert trek as Extreme and an in-season easy one as Low", () => {
+    expect(trekRisk(getSeedTrek("kanamo-peak")!, 1, null).level).toBe("Extreme");
     expect(trekRisk(getSeedTrek("deoria-tal")!, 5, null).level).toBe("Low");
   });
 
@@ -84,5 +94,43 @@ describe("trek risk", () => {
     const wet = { lowC: 12, highC: 20, rainPct: 85, typical: false };
     const r = trekRisk(getSeedTrek("triund")!, 5, wet);
     expect(r.factors.join(" ")).toMatch(/rain/i);
+  });
+});
+
+describe("decision-support add-ons", () => {
+  const hampta = () => getSeedTrek("hampta-pass")!;
+
+  it("orders pace estimates Fast < Average < Relaxed with positive hours", () => {
+    const [fast, avg, relaxed] = paceEstimates(hampta());
+    expect(fast.hours).toBeGreaterThan(0);
+    expect(fast.hours).toBeLessThan(avg.hours);
+    expect(avg.hours).toBeLessThan(relaxed.hours);
+  });
+
+  it("scores travel efficiency + worth-it within range, with a verdict and reasons", () => {
+    const eff = travelEfficiency(hampta(), 500);
+    expect(eff.score).toBeGreaterThanOrEqual(1);
+    expect(eff.score).toBeLessThanOrEqual(100);
+    expect(eff.verdict.length).toBeGreaterThan(0);
+    const worth = worthItScore(hampta(), eff);
+    expect(worth.score).toBeGreaterThanOrEqual(0);
+    expect(worth.reasons.length).toBeGreaterThan(0);
+  });
+
+  it("gives honest wildlife likelihoods and confidence-tagged logistics", () => {
+    for (const w of wildlifeGuide(hampta())) {
+      expect(["Low", "Possible", "Likely"]).toContain(w.probability);
+    }
+    const logistics = trailheadLogistics(hampta());
+    expect(logistics.find((l) => l.label === "Trailhead")).toBeTruthy();
+    for (const l of logistics) expect(["Known", "Estimate", "Verify"]).toContain(l.confidence);
+  });
+
+  it("plans water, footwear and narrative lines deterministically", () => {
+    expect(waterPlan(hampta()).carryLitres).toBeGreaterThan(0);
+    expect(terrainFootwear(hampta()).length).toBeGreaterThan(0);
+    expect(photographyGuide(hampta()).some((g) => g.moment === "Drone")).toBe(true);
+    expect(trekMatchSummary(hampta())).toContain("Hampta");
+    expect(emotionalTrekLine(hampta()).length).toBeGreaterThan(10);
   });
 });

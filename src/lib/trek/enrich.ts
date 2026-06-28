@@ -195,7 +195,7 @@ export function elevationProfile(trek: Trek): ElevationPoint[] {
 // A deterministic heuristic from altitude, grade, season fit, live weather (when
 // available), guide need and water — NOT a live landslide/avalanche feed.
 export interface TrekRisk {
-  level: "Low" | "Moderate" | "High";
+  level: "Low" | "Moderate" | "High" | "Extreme";
   factors: string[];
 }
 
@@ -252,7 +252,255 @@ export function trekRisk(
   if (trek.waterReliability && (trek.waterReliability.status === "none" || trek.waterReliability.status === "none-after-km")) {
     factors.push("Limited water — carry enough");
   }
-  const level: TrekRisk["level"] = score >= 5 ? "High" : score >= 2 ? "Moderate" : "Low";
+  const level: TrekRisk["level"] =
+    score >= 8 ? "Extreme" : score >= 5 ? "High" : score >= 2 ? "Moderate" : "Low";
   if (factors.length === 0) factors.push("Straightforward in season");
   return { level, factors };
+}
+
+export interface PaceEstimate {
+  label: "Fast" | "Average" | "Relaxed";
+  hours: number;
+  note: string;
+}
+
+export function paceEstimates(trek: Trek): PaceEstimate[] {
+  const average =
+    trek.durationHours ??
+    Math.max(
+      1,
+      (trek.distanceKm ?? 5) / 3.5 + (trek.elevationGainM ?? 0) / 550,
+    );
+  const round = (value: number) => Math.round(value * 2) / 2;
+  return [
+    { label: "Fast", hours: round(average * 0.78), note: "fit pace, short photo stops" },
+    { label: "Average", hours: round(average), note: "steady pace with normal breaks" },
+    { label: "Relaxed", hours: round(average * 1.32), note: "long rests and photo time" },
+  ];
+}
+
+export interface EfficiencyScore {
+  score: number;
+  travelHours: number;
+  trekHours: number;
+  payoff: number;
+  verdict: string;
+}
+
+export function travelEfficiency(
+  trek: Trek,
+  straightLineKm: number | null,
+): EfficiencyScore {
+  const travelHours = straightLineKm == null ? 0 : Math.max(1, straightLineKm / 45);
+  const trekHours = paceEstimates(trek)[1].hours;
+  const payoff =
+    trek.scenicDensity?.composite ??
+    Math.round((trek.dna.views + trek.dna.hidden + trek.dna.photography) / 3);
+  const ratio = travelHours > 0 ? trekHours / travelHours : 1;
+  const score = Math.max(
+    1,
+    Math.min(100, Math.round(payoff * 8 + Math.min(20, ratio * 12))),
+  );
+  const verdict =
+    score >= 80
+      ? "Exceptional payoff for the journey"
+      : score >= 62
+        ? "Worth making a day of it"
+        : score >= 45
+          ? "Best when folded into a wider trip"
+          : "The approach is the bigger commitment";
+  return { score, travelHours, trekHours, payoff, verdict };
+}
+
+export interface WorthItScore {
+  score: number;
+  label: string;
+  reasons: string[];
+}
+
+export function worthItScore(
+  trek: Trek,
+  efficiency: EfficiencyScore,
+): WorthItScore {
+  const scenery = trek.scenicDensity?.composite ?? trek.dna.views;
+  const uniqueness = trek.dna.hidden;
+  const crowdBonus = 10 - trek.dna.crowds;
+  const score = Math.round(
+    Math.min(
+      100,
+      scenery * 5 + uniqueness * 2.5 + crowdBonus * 1.5 + efficiency.score * 0.1,
+    ),
+  );
+  return {
+    score,
+    label:
+      score >= 85
+        ? "Make the detour"
+        : score >= 68
+          ? "Strong yes"
+          : score >= 50
+            ? "Worth it in season"
+            : "Choose for the journey, not only the summit",
+    reasons: [
+      `${scenery}/10 scenic density`,
+      `${uniqueness}/10 uniqueness`,
+      trek.dna.crowds <= 4 ? "usually quieter than headline trails" : "crowds reduce the payoff at peak time",
+    ],
+  };
+}
+
+export function trekMatchSummary(trek: Trek): string {
+  const strengths = Object.entries(trek.dna)
+    .filter(([, value]) => value >= 7)
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 3)
+    .map(([key]) => key.replace(/-/g, " "));
+  const caveat =
+    trek.difficulty === "expert"
+      ? "It rewards experience, acclimatisation and conservative decisions."
+      : trek.dna.crowds >= 7
+        ? "Start early, because the quiet version of this trail disappears by mid-morning."
+        : "Its best moments arrive before the day gets loud.";
+  return `${trek.name} fits when you want ${strengths.join(", ")} rather than a checklist trek. ${caveat}`;
+}
+
+export function emotionalTrekLine(trek: Trek): string {
+  if (trek.dna.hidden >= 8) return "A trail that feels like finding a secret before everyone else does.";
+  if (trek.dna.views >= 9) return "The kind of climb where the horizon keeps widening until conversation stops.";
+  if (trek.dna.forest >= 8) return "A green, shaded walk that reveals its payoff slowly.";
+  if (trek.dna.waterfalls >= 8) return "Follow the sound of water until the trail opens up.";
+  return "A measured escape with just enough effort to make the view feel earned.";
+}
+
+export interface WildlifeLikelihood {
+  label: string;
+  probability: "Low" | "Possible" | "Likely";
+  note: string;
+}
+
+export function wildlifeGuide(trek: Trek): WildlifeLikelihood[] {
+  const habitat = trek.scenicDensity?.wildlife ?? trek.dna.forest / 2;
+  const highAltitude = (trek.maxAltitudeM ?? 0) >= 3500;
+  const forest = trek.dna.forest >= 6;
+  return [
+    {
+      label: highAltitude ? "High-altitude birds" : forest ? "Forest birds" : "Open-country birds",
+      probability: habitat >= 7 ? "Likely" : habitat >= 4 ? "Possible" : "Low",
+      note: "Best around quiet dawn hours; habitat likelihood, not a guaranteed sighting.",
+    },
+    {
+      label: highAltitude ? "Mountain ungulates" : "Small mammals",
+      probability: habitat >= 7 && trek.dna.crowds <= 4 ? "Possible" : "Low",
+      note: "Keep distance, carry no food for wildlife, and never leave the trail to pursue a sighting.",
+    },
+    {
+      label: forest ? "Insects and leeches" : "Reptiles and insects",
+      probability:
+        trek.suitability.includes("monsoon") || (forest && ["Kerala", "Karnataka", "Meghalaya"].includes(trek.state))
+          ? "Likely"
+          : "Possible",
+      note: "Season and recent rain matter more than the catalog score.",
+    },
+  ];
+}
+
+export interface PhotographyGuide {
+  moment: string;
+  guidance: string;
+}
+
+export function photographyGuide(trek: Trek): PhotographyGuide[] {
+  const summit = trek.timeline.find((waypoint) =>
+    ["summit", "pass", "viewpoint", "ridge", "lake"].includes(waypoint.type),
+  );
+  return [
+    {
+      moment: "Golden hour",
+      guidance: `Reach ${summit?.label ?? "the main viewpoint"} 20–30 minutes before sunrise or sunset; use the date-aware sun planner below.`,
+    },
+    {
+      moment: "Milky Way",
+      guidance:
+        trek.dna.crowds <= 4 && trek.dna.hidden >= 6
+          ? "Promising dark-sky character on a clear, moonless night; verify cloud and moon conditions."
+          : "Possible only away from settlements and group lighting; check moon phase and local access hours.",
+    },
+    {
+      moment: "Drone",
+      guidance:
+        "Do not assume permission. Check Digital Sky, forest/protected-area, defence, temple and local rules before launch.",
+    },
+  ];
+}
+
+export function terrainFootwear(trek: Trek): string[] {
+  const kinds = new Set(trek.surface.map((surface) => surface.kind));
+  const advice: string[] = [];
+  if (kinds.has("rock") || kinds.has("steps")) advice.push("Grippy hiking shoes with a firm sole");
+  if (kinds.has("stream") || trek.suitability.includes("monsoon")) advice.push("Quick-dry socks and water-resistant footwear");
+  if (kinds.has("snow")) advice.push("Waterproof boots; verify whether microspikes are needed");
+  if (kinds.has("meadow") && !kinds.has("rock")) advice.push("Trail runners are adequate in dry conditions");
+  return [...new Set(advice.length ? advice : ["Broken-in walking or trail shoes"])];
+}
+
+export interface WaterPlan {
+  carryLitres: number;
+  refillPoints: string[];
+  warning: string;
+}
+
+export function waterPlan(trek: Trek): WaterPlan {
+  const configured = trek.waterReliability?.carryLitres;
+  const duration = paceEstimates(trek)[1].hours;
+  const carryLitres =
+    configured ?? Math.round(Math.max(1, Math.min(4, duration * 0.35)) * 2) / 2;
+  const refillPoints = trek.timeline
+    .filter((point) => ["water", "stream", "village"].includes(point.type))
+    .map((point) => `${point.label} (${point.km} km)`);
+  return {
+    carryLitres,
+    refillPoints,
+    warning:
+      trek.waterReliability?.status === "year-round"
+        ? "Treat natural water before drinking; year-round does not mean potable."
+        : "Seasonal sources can fail. Confirm locally and leave with the full amount.",
+  };
+}
+
+export interface TrailheadLogistics {
+  label: string;
+  value: string;
+  confidence: "Known" | "Estimate" | "Verify";
+}
+
+export function trailheadLogistics(trek: Trek): TrailheadLogistics[] {
+  const villageStart = trek.timeline.some((point) => point.type === "village");
+  return [
+    { label: "Trailhead", value: trek.trailhead || "Confirm locally", confidence: trek.trailhead ? "Known" : "Verify" },
+    { label: "Parking", value: villageStart ? "Ask locally for designated village parking" : "Roadhead capacity may be limited", confidence: "Verify" },
+    { label: "Bus / taxi", value: `Arrange the last mile from ${trek.nearestCity || trek.emergency?.nearestTown || "the nearest town"}`, confidence: "Estimate" },
+    { label: "Food & washroom", value: villageStart ? "More likely at the village start; carry backup food" : "Do not rely on trailhead facilities", confidence: "Estimate" },
+    { label: "Cash & ATM", value: `Withdraw in ${trek.emergency?.nearestTown || trek.nearestCity || "the nearest major town"}`, confidence: "Estimate" },
+    { label: "Clinic & network", value: trek.emergency?.evacNote || "Confirm the nearest clinic and mobile coverage before departure", confidence: "Verify" },
+  ];
+}
+
+export function landmarkDescription(type: Trek["timeline"][number]["type"]): string {
+  const descriptions: Record<Trek["timeline"][number]["type"], string> = {
+    trailhead: "Final gear check and route confirmation",
+    forest: "Shade, softer ground and reduced visibility",
+    waterfall: "Wet rock zone; protect electronics",
+    viewpoint: "Primary photo and regrouping point",
+    summit: "Main payoff; wind and exposure can rise quickly",
+    water: "Potential refill point; treat before drinking",
+    rest: "Natural pause and turnaround decision point",
+    village: "Food, local information and possible road access",
+    lake: "Sensitive shoreline; keep distance and pack waste out",
+    meadow: "Open terrain with weather exposure",
+    ridge: "Views improve while wind exposure increases",
+    pass: "High commitment point; reassess weather",
+    camp: "Shelter, water and overnight logistics",
+    stream: "Flow changes rapidly after rain",
+  };
+  return descriptions[type];
 }

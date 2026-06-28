@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { TrekDetail } from "@/components/trek-detail";
+import { wikiImage } from "@/lib/research/photos";
 import { getTrek } from "@/lib/trek/store";
 
 export const dynamic = "force-dynamic";
@@ -28,6 +29,9 @@ export default async function TrekPage({
   const { slug } = await params;
   const trek = await getTrek(slug);
   if (!trek) notFound();
+  const heroImage =
+    (await wikiImage(trek.name)) ??
+    (trek.nearestCity ? await wikiImage(trek.nearestCity) : null);
 
   return (
     <main>
@@ -42,7 +46,7 @@ export default async function TrekPage({
       </header>
 
       <section className="shell">
-        <TrekDetail trek={trek} />
+        <TrekDetail trek={trek} heroImageUrl={heroImage} />
       </section>
 
       <footer className="footer shell">

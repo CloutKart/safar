@@ -74,6 +74,8 @@ const DifficultySegmentSchema = z.object({
 const WaypointSchema = z.object({
   km: z.number().nonnegative(),
   label: z.string(),
+  description: z.string().default(""),
+  photoUrl: z.string().url().nullable().default(null),
   type: z.enum([
     "trailhead",
     "forest",

@@ -19,7 +19,12 @@ const interests = [
   "heritage",
 ];
 
-export default function Home() {
+export default async function Home({
+  searchParams,
+}: {
+  searchParams: Promise<{ trek?: string }>;
+}) {
+  const { trek } = await searchParams;
   return (
     <main>
       <header className="nav shell">
@@ -59,7 +64,7 @@ export default function Home() {
             <span className="htc-arrow" aria-hidden="true">→</span>
           </Link>
         </div>
-        <GroupCreator />
+        <GroupCreator initialSubject={trek ? `${trek} trek trip` : ""} />
       </section>
 
       <section className="conversation shell" aria-label="Example conversation">

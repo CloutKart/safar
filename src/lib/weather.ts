@@ -8,6 +8,16 @@ export interface WeatherSummary {
   typical: boolean;
 }
 
+export interface HourlyWeather {
+  time: string;
+  temperatureC: number;
+  rainPct: number;
+  windKph: number;
+  uvIndex: number;
+  visibilityKm: number;
+  weatherCode: number;
+}
+
 const nums = (values: unknown): number[] =>
   Array.isArray(values) ? values.filter((v): v is number => typeof v === "number") : [];
 
@@ -69,5 +79,45 @@ export async function fetchWeather(
     };
   } catch {
     return null;
+  }
+}
+
+// The next twelve trailhead hours, used by Trek Mode's departure timeline.
+// Open-Meteo exposes all six fields from one keyless request.
+export async function fetchHourlyWeather(
+  [lat, lng]: LatLng,
+  signal?: AbortSignal,
+): Promise<HourlyWeather[]> {
+  if (process.env.NODE_ENV === "test") return [];
+  try {
+    const url =
+      `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lng}` +
+      `&hourly=temperature_2m,precipitation_probability,wind_speed_10m,uv_index,visibility,weather_code` +
+      `&forecast_days=2&timezone=auto`;
+    const res = await fetch(url, { signal });
+    if (!res.ok) return [];
+    const data = await res.json();
+    const times: unknown[] = Array.isArray(data?.hourly?.time) ? data.hourly.time : [];
+    const temperature = nums(data?.hourly?.temperature_2m);
+    const rain = nums(data?.hourly?.precipitation_probability);
+    const wind = nums(data?.hourly?.wind_speed_10m);
+    const uv = nums(data?.hourly?.uv_index);
+    const visibility = nums(data?.hourly?.visibility);
+    const codes = nums(data?.hourly?.weather_code);
+    const currentHour = Date.now() - 60 * 60 * 1000;
+    return times
+      .map((time, index) => ({
+        time: String(time),
+        temperatureC: Math.round(temperature[index] ?? 0),
+        rainPct: Math.round(rain[index] ?? 0),
+        windKph: Math.round(wind[index] ?? 0),
+        uvIndex: Math.round((uv[index] ?? 0) * 10) / 10,
+        visibilityKm: Math.round(((visibility[index] ?? 0) / 1000) * 10) / 10,
+        weatherCode: Math.round(codes[index] ?? 0),
+      }))
+      .filter((hour) => new Date(hour.time).getTime() >= currentHour)
+      .slice(0, 12);
+  } catch {
+    return [];
   }
 }
