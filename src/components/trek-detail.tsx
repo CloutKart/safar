@@ -27,6 +27,7 @@ import { SunPlan } from "@/components/sun-plan";
 import { TrekConditions } from "@/components/trek-conditions";
 import { TrekShouldIGo } from "@/components/trek-should-i-go";
 import { TrekCalendarHeatmap } from "@/components/trek-calendar";
+import { TrekAdvisor } from "@/components/trek-advisor";
 import { TrekExports } from "@/components/trek-exports";
 import { TrekReports } from "@/components/trek-reports";
 import { TrekHero } from "@/components/trek-hero";
@@ -123,6 +124,12 @@ export function TrekDetail({
               : null
           }
         />
+      </section>
+
+      <section className="trek-section trek-ask-section">
+        <p className="eyebrow">Ask the trek advisor</p>
+        <h2>Anything on your mind before you commit?</h2>
+        <TrekAdvisor slug={trek.slug} />
       </section>
 
       <section className="trek-section trek-decision-grid">

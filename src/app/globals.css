@@ -1275,6 +1275,19 @@ a.stop-name:hover { text-decoration: underline; }
 .confidence-estimate { background: rgba(243,195,75,.22); color: #765a0b; }
 .confidence-verify { background: rgba(230,111,60,.14); color: var(--orange); }
 
+/* AI Trek Advisor — grounded Q&A */
+.ask-form { display: flex; gap: 8px; }
+.ask-form input { flex: 1; padding: 11px 14px; border: 1px solid var(--line); border-radius: 12px; background: var(--paper); color: var(--ink); font-size: 14px; color-scheme: light dark; }
+.ask-form button { padding: 11px 18px; border: none; border-radius: 12px; background: var(--green); color: #fff; font-weight: 600; font-size: 14px; cursor: pointer; }
+.ask-form button:disabled { opacity: .6; cursor: default; }
+.ask-chips { display: flex; flex-wrap: wrap; gap: 7px; margin-top: 10px; }
+.ask-chips button { padding: 6px 11px; border: 1px solid var(--line); border-radius: 99px; background: var(--card); color: var(--muted); font-size: 12px; cursor: pointer; }
+.ask-chips button:hover { border-color: var(--green); color: var(--ink); }
+.ask-error { margin-top: 10px; font-size: 13px; color: var(--orange); }
+.ask-answer { margin-top: 14px; padding: 16px; border: 1px solid var(--line); border-left: 3px solid var(--green); border-radius: 12px; background: var(--card); }
+.ask-answer p { margin: 0; font-size: 14px; line-height: 1.6; color: var(--ink); }
+.ask-answer small { display: block; margin-top: 8px; font-size: 11px; color: var(--muted); }
+
 /* Calendar heatmap — best time to go */
 .trek-calendar { display: flex; flex-direction: column; gap: 10px; }
 .cal-row { display: grid; grid-template-columns: repeat(12, 1fr); gap: 5px; }
