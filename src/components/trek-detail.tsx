@@ -8,6 +8,7 @@ import {
   crowdHeatmap,
   elevationProfile,
   emotionalTrekLine,
+  expandedTimeline,
   landmarkDescription,
   paceEstimates,
   photographyGuide,
@@ -20,6 +21,7 @@ import {
   waterPlan,
   wildlifeGuide,
   worthItScore,
+  stepMarkers,
   type SimilarTrek,
 } from "@/lib/trek/enrich";
 import { googleMapsUrl, osmUrl } from "@/lib/trek/exports";
@@ -31,7 +33,8 @@ import { TrekAdvisor } from "@/components/trek-advisor";
 import { TrekExports } from "@/components/trek-exports";
 import { TrekReports } from "@/components/trek-reports";
 import { TrekHero } from "@/components/trek-hero";
-import { InteractiveElevation } from "@/components/interactive-elevation";
+import { TrekTrailJourney, type JourneyStep } from "@/components/trek-trail-journey";
+import { waypointImage } from "@/lib/trek/imagery";
 import { TrekPackingAssistant } from "@/components/trek-packing-assistant";
 import { TrekMemory } from "@/components/trek-memory";
 
@@ -91,6 +94,21 @@ export function TrekDetail({
   const heatmap = crowdHeatmap(trek);
   const traffic = trafficEstimate(trek);
   const elevation = elevationProfile(trek);
+  // Expanded, image-resolved trail steps (server-side) for the visual journey.
+  const expanded = expandedTimeline(trek);
+  const journeySteps: JourneyStep[] = expanded.map((s) => {
+    const img = waypointImage(trek, s);
+    return {
+      km: s.km,
+      label: s.label,
+      description: s.description || landmarkDescription(s.type),
+      type: s.type,
+      synthesized: s.synthesized,
+      imageUrl: img.url,
+      representative: img.representative,
+      markers: stepMarkers(trek, s, expanded),
+    };
+  });
   const efficiency = travelEfficiency(trek, hubs[0]?.km ?? null);
   const worth = worthItScore(trek, efficiency);
   const paces = paceEstimates(trek);
@@ -220,39 +238,16 @@ export function TrekDetail({
         </section>
       )}
 
-      {/* Estimated elevation profile */}
-      {elevation.length > 1 && (
+      {/* The journey, km by km — elevation + photo-timeline, hover-synced */}
+      {journeySteps.length > 0 && (
         <section className="trek-section">
-          <h2>Interactive elevation profile</h2>
-          <p className="trek-sub">Hover, drag or use the slider to inspect effort along the route. Estimated from distance, gain and summit position — not DEM or survey data.</p>
-          <InteractiveElevation points={elevation} />
-        </section>
-      )}
-
-      {/* Km-by-km timeline */}
-      {trek.timeline.length > 0 && (
-        <section className="trek-section">
-          <h2>Animated trail timeline</h2>
-          <ol className="trek-timeline">
-            {trek.timeline.map((w, i) => (
-              <li key={i} className={`tl-${w.type}`} style={{ animationDelay: `${i * 90}ms` }}>
-                {w.photoUrl && (
-                  <span
-                    className="tl-photo"
-                    style={{ backgroundImage: `url("${w.photoUrl.replaceAll('"', "%22")}")` }}
-                    role="img"
-                    aria-label={`${w.label} trail landmark`}
-                  />
-                )}
-                <span className="tl-icon" aria-hidden="true">
-                  {w.type === "trailhead" ? "◉" : w.type === "forest" ? "♧" : w.type === "waterfall" || w.type === "water" || w.type === "stream" ? "≈" : w.type === "summit" || w.type === "pass" ? "△" : w.type === "village" ? "⌂" : "•"}
-                </span>
-                <span className="tl-km">{w.km} km</span>
-                <span className="tl-label">{w.label}</span>
-                <span className="tl-description">{w.description || landmarkDescription(w.type)}</span>
-              </li>
-            ))}
-          </ol>
+          <h2>The trail, km by km</h2>
+          <p className="trek-sub">
+            A photo at every step — hover the elevation or a step to follow the route.
+            Images tagged &ldquo;representative&rdquo; show the terrain type, not the exact spot;
+            elevation is estimated, not DEM/survey data.
+          </p>
+          <TrekTrailJourney steps={journeySteps} points={elevation} />
         </section>
       )}
 

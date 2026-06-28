@@ -3,8 +3,33 @@
 import { useMemo, useState } from "react";
 import type { ElevationPoint } from "@/lib/trek/enrich";
 
-export function InteractiveElevation({ points }: { points: ElevationPoint[] }) {
-  const [activeIndex, setActiveIndex] = useState(0);
+function nearestIndex(points: ElevationPoint[], km: number): number {
+  let best = 0;
+  let bestD = Infinity;
+  for (let i = 0; i < points.length; i++) {
+    const d = Math.abs(points[i].km - km);
+    if (d < bestD) {
+      bestD = d;
+      best = i;
+    }
+  }
+  return best;
+}
+
+// Interactive elevation profile. Uncontrolled by default (own cursor), or
+// CONTROLLED via `activeKm`/`onActiveKm` so a parent can keep it in sync with the
+// trail timeline (hover a step → cursor moves here, and vice-versa).
+export function InteractiveElevation({
+  points,
+  activeKm,
+  onActiveKm,
+}: {
+  points: ElevationPoint[];
+  activeKm?: number;
+  onActiveKm?: (km: number) => void;
+}) {
+  const [internal, setInternal] = useState(0);
+  const controlled = activeKm != null;
   const geometry = useMemo(() => {
     const width = 640;
     const height = 180;
@@ -30,12 +55,19 @@ export function InteractiveElevation({ points }: { points: ElevationPoint[] }) {
   }, [points]);
 
   if (points.length < 2) return null;
+  const activeIndex = controlled ? nearestIndex(points, activeKm!) : internal;
   const active = points[activeIndex];
   const cursor = geometry.xy[activeIndex];
 
+  const setActive = (i: number) => {
+    const clamped = Math.max(0, Math.min(points.length - 1, i));
+    if (controlled) onActiveKm?.(points[clamped].km);
+    else setInternal(clamped);
+  };
+
   function inspect(clientX: number, rect: DOMRect) {
     const ratio = Math.max(0, Math.min(1, (clientX - rect.left) / rect.width));
-    setActiveIndex(Math.round(ratio * (points.length - 1)));
+    setActive(Math.round(ratio * (points.length - 1)));
   }
 
   return (
@@ -78,7 +110,7 @@ export function InteractiveElevation({ points }: { points: ElevationPoint[] }) {
         min={0}
         max={points.length - 1}
         value={activeIndex}
-        onChange={(event) => setActiveIndex(Number(event.target.value))}
+        onChange={(event) => setActive(Number(event.target.value))}
         aria-label="Inspect elevation along the route"
       />
       <div className="elev-axis">

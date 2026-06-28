@@ -1025,7 +1025,13 @@ a.stop-name:hover { text-decoration: underline; }
 .tl-label { font-size: 15px; }
 .tl-icon { font-size: 20px; color: var(--green); line-height: 1; }
 .tl-description { grid-column: 3; margin-top: 4px; font-size: 12px; line-height: 1.5; color: var(--muted); }
-.tl-photo { grid-column: 1 / -1; width: 100%; height: 150px; margin-bottom: 12px; border-radius: 14px; background-size: cover; background-position: center; }
+.tl-photo { position: relative; grid-column: 1 / -1; width: 100%; height: 170px; margin-bottom: 12px; border-radius: 14px; background-size: cover; background-position: center; background-color: var(--line); }
+.tl-photo-tag { position: absolute; bottom: 8px; right: 8px; padding: 2px 7px; border-radius: 99px; background: rgba(0,0,0,.55); color: #fff; font: 8px var(--font-mono), monospace; text-transform: uppercase; letter-spacing: .05em; }
+.tl-markers { margin-left: 8px; font-size: 13px; letter-spacing: 2px; vertical-align: middle; }
+.trek-timeline li { cursor: default; border-radius: 14px; transition: background .15s; outline: none; }
+.trek-timeline li.tl-active { background: color-mix(in srgb, var(--green) 8%, transparent); }
+.trek-timeline li.tl-active::before { box-shadow: 0 0 0 4px color-mix(in srgb, var(--green) 28%, transparent); }
+.trek-journey { display: flex; flex-direction: column; gap: 18px; }
 @keyframes trailStepIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
 
 .trek-hidden { background: rgba(216,239,124,.16); border: 1px solid rgba(31,107,79,.2); border-radius: 18px; padding: 20px 22px; }
