@@ -60,6 +60,19 @@ export async function wikiImage(title: string): Promise<string | null> {
   return data.originalimage?.source ?? data.thumbnail?.source ?? null;
 }
 
+// Try several Wikipedia titles in order (most specific landmark first), returning
+// the first lead image. Used as the trek hero fallback so an uncurated trek lands
+// on a relevant landmark photo rather than an unrelated city shot.
+export async function wikiImageFromCandidates(titles: Array<string | null | undefined>): Promise<string | null> {
+  for (const title of titles) {
+    const clean = title?.trim();
+    if (!clean) continue;
+    const img = await wikiImage(clean);
+    if (img) return img;
+  }
+  return null;
+}
+
 // Four reference images per plan: a hero, a popular sight, a hidden gem, and a
 // food/culture shot — drawn from the destination's gem photos with a free
 // Wikipedia hero fallback. Bounded to five parallel fetches.

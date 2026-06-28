@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { TrekDetail } from "@/components/trek-detail";
-import { wikiImage } from "@/lib/research/photos";
+import { wikiImageFromCandidates } from "@/lib/research/photos";
 import { getTrek } from "@/lib/trek/store";
 
 export const dynamic = "force-dynamic";
@@ -29,9 +29,16 @@ export default async function TrekPage({
   const { slug } = await params;
   const trek = await getTrek(slug);
   if (!trek) notFound();
+  // Curated landmark photo first (reliable + relevant); else resolve a landmark
+  // image from the trail/region — never an unrelated city shot. If everything
+  // fails, the hero CSS falls back to a scenic gradient (no broken image).
   const heroImage =
-    (await wikiImage(trek.name)) ??
-    (trek.nearestCity ? await wikiImage(trek.nearestCity) : null);
+    trek.photoUrl ??
+    (await wikiImageFromCandidates([
+      trek.name.replace(/\b(trek|trail|summit|via)\b.*$/i, "").trim(),
+      trek.trailhead,
+      trek.region,
+    ]));
 
   return (
     <main>

@@ -132,6 +132,8 @@ export const TrekSchema = z.object({
   // ── Storytelling (the Safar voice) ──
   blurb: z.string().default(""),
   description: z.string().default(""),
+  // Curated hero image (a verified landmark photo); null → live fallback.
+  photoUrl: z.string().url().nullable().default(null),
   // ── Trek DNA + rich page data ──
   dna: TrekDnaSchema,
   difficultyViz: TrekDifficultyVizSchema.nullable().default(null),

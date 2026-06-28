@@ -1008,7 +1008,34 @@ const raw: Array<z.input<typeof TrekSchema>> = [
   },
 ];
 
-export const treks: Trek[] = raw.map((t) => TrekSchema.parse(t));
+// Curated hero images — verified Wikimedia Commons lead images of each trek's
+// own landmark (the most representative scenic shot), so the hero is reliable and
+// relevant instead of a generic city photo. Stable, free-licensed, hotlink-safe.
+// Treks without a strong, specific match are left out and use the live fallback.
+const HERO_IMAGE: Record<string, string> = {
+  "chandrashila-tungnath": "https://upload.wikimedia.org/wikipedia/commons/thumb/9/98/AjitHota-ChandrasilaPeak.jpg/3840px-AjitHota-ChandrasilaPeak.jpg",
+  "deoria-tal": "https://upload.wikimedia.org/wikipedia/commons/1/19/Deoria_Tal_Chandrashila_Chaukamba_reflection.jpg",
+  "rohini-bugyal": "https://upload.wikimedia.org/wikipedia/commons/3/3f/Chopta%2C_starting_point_for_treks_to_Tungnath_and_Chandrashila.jpg",
+  "pin-parvati-pass": "https://upload.wikimedia.org/wikipedia/commons/thumb/4/43/Tosh_in_Monsoon%2C_July_2017.jpg/3840px-Tosh_in_Monsoon%2C_July_2017.jpg",
+  "dhankar-lake": "https://upload.wikimedia.org/wikipedia/commons/3/35/Dhankar_Gompa_and_village.jpg",
+  "kanamo-peak": "https://upload.wikimedia.org/wikipedia/commons/thumb/f/f5/Kibber_-_a_villege_in_spiti.jpg/3840px-Kibber_-_a_villege_in_spiti.jpg",
+  "hampta-pass": "https://upload.wikimedia.org/wikipedia/commons/3/3a/Chandratal_1.JPG",
+  "bhrigu-lake": "https://upload.wikimedia.org/wikipedia/commons/7/7c/Brighu_Lake.jpg",
+  "beas-kund": "https://upload.wikimedia.org/wikipedia/commons/thumb/f/f1/Solang_Valley_%2CManali%2C_Himachal_Pardes%2C_India.JPG/3840px-Solang_Valley_%2CManali%2C_Himachal_Pardes%2C_India.JPG",
+  triund: "https://upload.wikimedia.org/wikipedia/commons/a/a6/Triund_%2822356802630%29.jpg",
+  "kareri-lake": "https://upload.wikimedia.org/wikipedia/commons/2/26/Kareri_Lake.JPG",
+  "indrahar-pass": "https://upload.wikimedia.org/wikipedia/commons/2/20/Looking_up_to_the_Indrahar_Pass_%2822356846090%29.jpg",
+  "ghnp-rolla": "https://upload.wikimedia.org/wikipedia/commons/thumb/d/dd/Himalayn_National_Park_01.jpg/3840px-Himalayn_National_Park_01.jpg",
+  "nag-tibba": "https://upload.wikimedia.org/wikipedia/commons/9/99/Garhwal_Himal_from_Camels_Back_%285281754856%29.jpg",
+  tadiandamol: "https://upload.wikimedia.org/wikipedia/commons/thumb/b/b0/Tadiandamol_Trek_25Aug_Pic_3_View_From_Top.jpg/3840px-Tadiandamol_Trek_25Aug_Pic_3_View_From_Top.jpg",
+  brahmagiri: "https://upload.wikimedia.org/wikipedia/commons/0/00/Brahmagiri_wildlife_sanctuary.jpg",
+  "david-scott-trail": "https://upload.wikimedia.org/wikipedia/commons/thumb/a/ae/Mawphlang_village.jpg/3840px-Mawphlang_village.jpg",
+  "mawlyngbna-split-rock": "https://upload.wikimedia.org/wikipedia/commons/f/ff/Cherrapunji.jpg",
+};
+
+export const treks: Trek[] = raw.map((t) =>
+  TrekSchema.parse({ ...t, photoUrl: t.photoUrl ?? HERO_IMAGE[t.slug] ?? null }),
+);
 
 export const trekBySlug: Map<string, Trek> = new Map(treks.map((t) => [t.slug, t]));
 
