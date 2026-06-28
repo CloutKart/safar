@@ -76,6 +76,45 @@ const COORDS: Record<string, LatLng> = {
   agra: [27.1767, 78.0081],
   panaji: [15.4909, 73.8278],
   coimbatore: [11.0168, 76.9558],
+
+  // ── Trek-gateway cities & hubs (departure points for the corpus) ──
+  dehradun: [30.3165, 78.0322],
+  haridwar: [29.9457, 78.1642],
+  mussoorie: [30.4599, 78.0664],
+  joshimath: [30.555, 79.5645],
+  uttarkashi: [30.7268, 78.4354],
+  kathgodam: [29.2745, 79.5394],
+  nainital: [29.3919, 79.4542],
+  almora: [29.5892, 79.6467],
+  bageshwar: [29.8389, 79.7717],
+  pithoragarh: [29.5829, 80.2182],
+  munsiyari: [30.0668, 80.2389],
+  leh: [34.1526, 77.5771],
+  srinagar: [34.0837, 74.7973],
+  pahalgam: [34.0161, 75.3318],
+  sonamarg: [34.3032, 75.2911],
+  kullu: [31.9576, 77.1095],
+  mandi: [31.708, 76.9319],
+  kasol: [32.0107, 77.3152],
+  kaza: [32.227, 78.073],
+  dharamshala: [32.219, 76.3234],
+  dalhousie: [32.5387, 75.9706],
+  gangtok: [27.3314, 88.6138],
+  guwahati: [26.1445, 91.7362],
+  shillong: [25.5788, 91.8933],
+  kohima: [25.6751, 94.1086],
+  imphal: [24.817, 93.9368],
+  aizawl: [23.7271, 92.7176],
+  lunglei: [22.8879, 92.733],
+  itanagar: [27.0844, 93.6053],
+  dibrugarh: [27.4728, 94.912],
+  raipur: [21.2514, 81.6296],
+  bilaspur: [22.0797, 82.1409],
+  chikmagalur: [13.3161, 75.772],
+  mangalore: [12.9141, 74.856],
+  mangaluru: [12.9141, 74.856],
+  kozhikode: [11.2588, 75.7804],
+  kalpetta: [11.6085, 76.0834],
 };
 
 // Aliases for catalog names that don't match their slug directly.
@@ -117,7 +156,9 @@ export async function geocodeCity(
   try {
     const res = await fetch(
       `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(`${name}, India`)}&format=json&limit=1`,
-      { signal, headers: { Accept: "application/json" } },
+      // Nominatim's usage policy requires an identifying User-Agent; without it
+      // requests are rejected (403), so the geocode fallback would never resolve.
+      { signal, headers: { Accept: "application/json", "User-Agent": "Safar/1.0 (trek planner)" } },
     );
     if (!res.ok) return null;
     const data = (await res.json()) as Array<{ lat: string; lon: string }>;

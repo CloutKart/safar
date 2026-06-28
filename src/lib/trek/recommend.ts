@@ -1,5 +1,5 @@
 import { generateEmbedding, generateStructured } from "@/lib/ai/client";
-import { haversineKm, lookupCoords, type LatLng } from "@/lib/cityCoords";
+import { geocodeCity, haversineKm, lookupCoords, type LatLng } from "@/lib/cityCoords";
 import type { TrailDifficulty } from "@/lib/domain";
 import {
   TREK_DNA_DIMS,
@@ -293,7 +293,14 @@ export function scoreTrek(
   // (the brief's "Landour should beat Majuli"): a far trek can't win on other
   // axes alone. A multiplicative haircut — up to ~45% for a very distant trail —
   // on top of the additive term, so "near Bangalore" actually surfaces the south.
-  if (origin && distanceKm != null) score *= 0.55 + 0.45 * prox;
+  // Uses a CONTINUOUS nearness (not the saturating `prox`) so that among
+  // reachable treks the genuinely closer ones still rank higher — e.g. "near
+  // Dehradun" puts a 115 km trek above a 300 km one rather than tying them.
+  if (origin && distanceKm != null) {
+    const reach = intent.weekend || intent.transport === "public" ? 900 : 2000;
+    const nearness = Math.max(0, 1 - distanceKm / reach);
+    score *= 0.55 + 0.45 * nearness;
+  }
   return { score, distanceKm };
 }
 
@@ -306,7 +313,13 @@ export async function recommendTreks(
 
   const base = query ? await parseTrekQuery(query) : emptyIntent();
   const intent = mergeFilters(base, opts.filters);
-  const origin = intent.nearCity ? lookupCoords(intent.nearCity) : null;
+  // Resolve the departure city: the static gateway DB first (fast, reliable),
+  // then a keyless geocode fallback so any town/typo still gets a proximity
+  // ranking instead of silently doing nothing. Degrades to null on timeout.
+  let origin = intent.nearCity ? lookupCoords(intent.nearCity) : null;
+  if (intent.nearCity && !origin) {
+    origin = await geocodeCity(intent.nearCity, AbortSignal.timeout(3000));
+  }
 
   // Recall: embeddings + pgvector when there's NL text, else the full corpus.
   const embedding = query ? await generateEmbedding(query) : null;
