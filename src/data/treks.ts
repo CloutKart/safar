@@ -75,7 +75,7 @@ const raw: Array<z.input<typeof TrekSchema>> = [
     timeline: [
       { km: 0, label: "Chopta trailhead, alpine scrub", type: "trailhead" },
       { km: 3.5, label: "Tungnath temple", type: "rest" },
-      { km: 4.5, label: "Chandrashila summit, 360° panorama", type: "summit" },
+      { km: 4.5, label: "Chandrashila summit, 360° panorama", type: "summit", photoUrl: "https://upload.wikimedia.org/wikipedia/commons/thumb/9/98/AjitHota-ChandrasilaPeak.jpg/1280px-AjitHota-ChandrasilaPeak.jpg" },
     ],
     hiddenMoments: [
       { km: 3.5, text: "Locals brew chai by the temple before dawn — warm your hands and wait for the peaks to catch fire." },
@@ -498,7 +498,7 @@ const raw: Array<z.input<typeof TrekSchema>> = [
       { km: 0, label: "Jobra trailhead", type: "trailhead" },
       { km: 5, label: "Jwara meadows, waterfalls", type: "waterfall" },
       { km: 14, label: "Balu ka Ghera camp", type: "camp" },
-      { km: 20, label: "Hampta Pass, 4,270 m", type: "pass" },
+      { km: 20, label: "Hampta Pass, 4,270 m", type: "pass", photoUrl: "https://upload.wikimedia.org/wikipedia/commons/thumb/4/4e/Hampta_pass.jpg/1280px-Hampta_pass.jpg" },
       { km: 26, label: "Shea Goru, Lahaul side", type: "camp" },
     ],
     hiddenMoments: [
@@ -715,7 +715,7 @@ const raw: Array<z.input<typeof TrekSchema>> = [
     timeline: [
       { km: 0, label: "Dharamkot", type: "village" },
       { km: 4, label: "Magic View café", type: "rest" },
-      { km: 9, label: "Triund ridge campsite", type: "ridge" },
+      { km: 9, label: "Triund ridge campsite", type: "ridge", photoUrl: "https://upload.wikimedia.org/wikipedia/commons/thumb/a/a6/Triund_%2822356802630%29.jpg/1280px-Triund_%2822356802630%29.jpg" },
     ],
     hiddenMoments: [
       { km: 9, text: "Walk 20 minutes past the tea stalls toward Laka Got — the crowds vanish and the Dhauladhar feels close enough to touch." },
@@ -1207,7 +1207,7 @@ const raw: Array<z.input<typeof TrekSchema>> = [
       { km: 0, label: "Nalknad Palace", type: "village" },
       { km: 3, label: "shola forest tunnels", type: "forest" },
       { km: 5, label: "open grassland slopes", type: "meadow" },
-      { km: 7, label: "Tadiandamol summit, 1,748 m", type: "summit" },
+      { km: 7, label: "Tadiandamol summit, 1,748 m", type: "summit", photoUrl: "https://upload.wikimedia.org/wikipedia/commons/thumb/7/7d/Tadiandamol%2C_Tadiyantamol_landscape_during_GRV2019_%28194%29.jpg/1280px-Tadiandamol%2C_Tadiyantamol_landscape_during_GRV2019_%28194%29.jpg" },
     ],
     hiddenMoments: [
       { km: 3, text: "The shola forest 'tunnels' hold mist long after sunrise — step in and the temperature drops ten degrees." },
@@ -2107,7 +2107,7 @@ const raw: Array<z.input<typeof TrekSchema>> = [
     timeline: [
       { km: 0, label: "Viswema village, ~1,700 m", type: "village" },
       { km: 6, label: "stone steps through oak forest", type: "forest" },
-      { km: 10, label: "valley floor & SAYO guesthouse, ~2,450 m", type: "meadow" },
+      { km: 10, label: "valley floor & SAYO guesthouse, ~2,450 m", type: "meadow", photoUrl: "https://upload.wikimedia.org/wikipedia/commons/thumb/8/80/Dzukou_Valley.jpg/1280px-Dzukou_Valley.jpg" },
     ],
     hiddenMoments: [
       { km: 10, text: "Walk out onto the bamboo in the last hour of light — the whole caldera glows green-gold and the day-trippers have already gone down." },
@@ -2766,7 +2766,7 @@ const raw: Array<z.input<typeof TrekSchema>> = [
       { km: 0, label: "Sankri, 1,920 m", type: "village" },
       { km: 4, label: "Juda-ka-Talab, 2,700 m", type: "lake" },
       { km: 7, label: "Kedarkantha base, 3,400 m", type: "camp" },
-      { km: 10, label: "Kedarkantha summit, 3,810 m", type: "summit" },
+      { km: 10, label: "Kedarkantha summit, 3,810 m", type: "summit", photoUrl: "https://upload.wikimedia.org/wikipedia/commons/thumb/6/68/Kedarkantha_Peak.jpg/1280px-Kedarkantha_Peak.jpg" },
     ],
     hiddenMoments: [
       { km: 4, text: "Juda-ka-Talab freezes into a black mirror by January — camp beside it and the pines crackle with frost at dawn." },
@@ -2832,7 +2832,7 @@ const raw: Array<z.input<typeof TrekSchema>> = [
     timeline: [
       { km: 0, label: "Ghangaria, 3,050 m", type: "village" },
       { km: 3, label: "valley gate & glacial stream", type: "stream" },
-      { km: 6, label: "flower meadows, ~3,600 m", type: "meadow" },
+      { km: 6, label: "flower meadows, ~3,600 m", type: "meadow", photoUrl: "https://upload.wikimedia.org/wikipedia/commons/thumb/5/50/Valley_of_flowers_national_park%2C_Uttarakhand%2C_India_03_%28edit%29.jpg/1280px-Valley_of_flowers_national_park%2C_Uttarakhand%2C_India_03_%28edit%29.jpg" },
       { km: 8, label: "valley head / Tipra glacier view, 3,858 m", type: "viewpoint" },
     ],
     hiddenMoments: [
@@ -2901,7 +2901,7 @@ const raw: Array<z.input<typeof TrekSchema>> = [
       { km: 14, label: "Ali Bugyal, 3,400 m", type: "meadow" },
       { km: 20, label: "Bedni Bugyal, 3,650 m", type: "meadow" },
       { km: 26, label: "Bhagwabasa, 4,100 m", type: "camp" },
-      { km: 28, label: "Roopkund, 4,536 m", type: "lake" },
+      { km: 28, label: "Roopkund, 4,536 m", type: "lake", photoUrl: "https://upload.wikimedia.org/wikipedia/commons/thumb/8/89/Roopkund_-_The_Mystery_Lake.jpg/1280px-Roopkund_-_The_Mystery_Lake.jpg" },
     ],
     hiddenMoments: [
       { km: 20, text: "Bedni Bugyal at dawn is one of the great Himalayan meadow camps — Trishul catches fire while the grass is still silver with dew." },
