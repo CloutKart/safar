@@ -34,7 +34,8 @@ import { TrekExports } from "@/components/trek-exports";
 import { TrekReports } from "@/components/trek-reports";
 import { TrekHero } from "@/components/trek-hero";
 import { TrekTrailJourney, type JourneyStep } from "@/components/trek-trail-journey";
-import { waypointImage } from "@/lib/trek/imagery";
+import { TrekLightWildlife } from "@/components/trek-light-wildlife";
+import { goldenHourImage, waypointImage, wildlifeImages } from "@/lib/trek/imagery";
 import { TrekPackingAssistant } from "@/components/trek-packing-assistant";
 import { TrekMemory } from "@/components/trek-memory";
 
@@ -108,6 +109,19 @@ export function TrekDetail({
       representative: img.representative,
       markers: stepMarkers(trek, s, expanded),
     };
+  });
+  // Light & wildlife imagery, and a picture for each hidden moment (the nearest
+  // trail-step image, else the golden-hour shot).
+  const golden = goldenHourImage(trek);
+  const wildlifeShots = wildlifeImages(trek);
+  const hiddenWithImage = trek.hiddenMoments.map((m) => {
+    let imageUrl = golden;
+    if (m.km != null && journeySteps.length > 0) {
+      imageUrl = journeySteps.reduce((best, s) =>
+        Math.abs(s.km - m.km!) < Math.abs(best.km - m.km!) ? s : best,
+      ).imageUrl;
+    }
+    return { text: m.text, km: m.km, imageUrl };
   });
   const efficiency = travelEfficiency(trek, hubs[0]?.km ?? null);
   const worth = worthItScore(trek, efficiency);
@@ -268,25 +282,34 @@ export function TrekDetail({
         </section>
       )}
 
-      {/* Hidden moments — the Safar soul */}
-      {trek.hiddenMoments.length > 0 && (
+      {/* Hidden moments — the Safar soul, now with a picture each */}
+      {hiddenWithImage.length > 0 && (
         <section className="trek-section trek-hidden">
           <h2>🤫 Hidden moments</h2>
-          <ul>
-            {trek.hiddenMoments.map((m, i) => (
-              <li key={i}>
-                {m.km != null && <span className="hm-km">{m.km} km</span>}
-                {m.text}
-              </li>
+          <div className="hm-grid">
+            {hiddenWithImage.map((m, i) => (
+              <article key={i} className="hm-card">
+                <span
+                  className="hm-photo"
+                  style={{ backgroundImage: `url("${m.imageUrl.replaceAll('"', "%22")}")` }}
+                  role="img"
+                  aria-label="A representative moment along the trail"
+                />
+                <p>
+                  {m.km != null && <span className="hm-km">{m.km} km</span>}
+                  {m.text}
+                </p>
+              </article>
             ))}
-          </ul>
+          </div>
         </section>
       )}
 
-      {/* Sun & golden hour (date-aware, client) */}
+      {/* Sun & golden hour (date-aware, client) + light/wildlife image band */}
       {coords && (
         <section className="trek-section">
           <SunPlan coords={coords} hoursToViewpoint={hoursToViewpoint} />
+          <TrekLightWildlife goldenImage={golden} wildlife={wildlifeShots} />
         </section>
       )}
 
