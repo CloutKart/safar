@@ -29,24 +29,30 @@ import { TrekSchema, type Trek } from "../src/lib/trek/schema";
 const ROOT = join(import.meta.dirname, "..");
 const OUT_DIR = join(import.meta.dirname, "out");
 
-// ── Tiny .env.local loader (no dependency) ───────────────────────────────────
-// tsx does not auto-load env files; mirror Next's .env.local so the script picks
-// up the same LLM_* keys the dev server uses. Existing process.env wins.
-function loadEnvLocal(): void {
-  const path = join(ROOT, ".env.local");
-  if (!existsSync(path)) return;
-  for (const line of readFileSync(path, "utf8").split("\n")) {
-    const m = line.match(/^\s*([A-Z0-9_]+)\s*=\s*(.*)\s*$/);
-    if (!m || line.trim().startsWith("#")) continue;
-    const key = m[1];
-    let val = m[2].trim();
-    if (
-      (val.startsWith('"') && val.endsWith('"')) ||
-      (val.startsWith("'") && val.endsWith("'"))
-    ) {
-      val = val.slice(1, -1);
+// ── Tiny dotenv loader (no dependency) ───────────────────────────────────────
+// tsx does not auto-load env files; mirror Next's precedence so the script picks
+// up the same LLM_* keys the dev server uses. Real process.env wins, then
+// .env.local, then .env (loaded last so it only fills gaps the others left).
+function loadEnvFiles(): void {
+  for (const name of [".env.local", ".env"]) {
+    const path = join(ROOT, name);
+    if (!existsSync(path)) continue;
+    for (const line of readFileSync(path, "utf8").split("\n")) {
+      if (line.trim().startsWith("#")) continue;
+      const m = line.match(/^\s*([A-Z0-9_]+)\s*=\s*(.*)\s*$/);
+      if (!m) continue;
+      const key = m[1];
+      let val = m[2].trim();
+      if (
+        (val.startsWith('"') && val.endsWith('"')) ||
+        (val.startsWith("'") && val.endsWith("'"))
+      ) {
+        val = val.slice(1, -1);
+      }
+      // First file to set a key wins (.env.local over .env); never override a
+      // value already in the real environment or an empty one from .env.
+      if (process.env[key] === undefined && val !== "") process.env[key] = val;
     }
-    if (process.env[key] === undefined) process.env[key] = val;
   }
 }
 
@@ -168,9 +174,19 @@ RULES — non-negotiable:
 - NEVER fabricate emergency phone numbers, helplines, real-time conditions, or named contacts. The "emergency" object holds ONLY: nearestTown (string) and evacNote (a calm, generic "road head at X; nearest hospital in Y" sentence). Nothing else.
 - Do NOT output coordinates or maxAltitudeM you are unsure of — set them to null; the pipeline verifies them separately.
 - "dna" is twelve integers 0-10. crowds = how BUSY it is (high = crowded). difficulty mirrors the grade as a number.
+- "difficultyViz" (energy, steepness, exposure, technical) is a DIFFERENT, SMALLER scale: integers 1-5 only. Never use 0-10 here.
+- "scenicDensity" values are 0-10 integers; "surface" pcts and "completionConfidence" pcts are 0-100 and each set should sum to ~100.
 - difficultyProfile km ranges must be ascending and lie within distanceKm. timeline km must be <= distanceKm.
-- bestMonths are integers 1-12. routeType is one of "loop" | "out-and-back" | "point-to-point".
-- difficulty is one of "easy" | "moderate" | "hard" | "expert".
+- bestMonths are integers 1-12.
+- CLOSED VOCABULARIES — use ONLY these exact strings, never synonyms:
+  - difficulty: easy | moderate | hard | expert
+  - routeType: loop | out-and-back | point-to-point
+  - waterReliability.status: year-round | seasonal | none-after-km | none
+  - surface[].kind: forest | steps | rock | meadow | stream | road | snow
+  - timeline[].type: trailhead | forest | waterfall | viewpoint | summit | water | rest | village | lake | meadow | ridge | pass | camp | stream
+  - difficultyProfile[].grade: flat | gentle | moderate | steep | scramble
+  - suitability[]: first-trek | kids | dog | solo | couples | photography | birdwatching | camping | monsoon | winter-snow
+    (e.g. use "kids" not "families"; "winter-snow" not "snow"; only tags from this list)
 - Keep blurb under 90 chars; description 2-3 evocative but factual sentences in a warm, grounded voice.`;
 
 // A trimmed gold record (real seed entry) so the model copies the exact shape.
@@ -351,7 +367,7 @@ function dropDefaultsReplacer(key: string, value: unknown): unknown {
 }
 
 async function main(): Promise<void> {
-  loadEnvLocal();
+  loadEnvFiles();
   const args = process.argv.slice(2);
   const limitArg = args.indexOf("--limit");
   const limit = limitArg >= 0 ? Number(args[limitArg + 1]) : Infinity;

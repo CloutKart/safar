@@ -29,7 +29,8 @@ npx tsx scripts/ingest-treks.ts                # or: npm run ingest
 npx tsx scripts/ingest-treks.ts mylist.json --limit 20
 ```
 
-Set the LLM keys in `.env.local` (same as the dev server) for full drafts:
+The script reads the same LLM keys the dev server uses, from `.env.local` then `.env`
+(real environment variables still win):
 
 ```
 LLM_API_URL=https://api.groq.com/openai/v1/chat/completions
