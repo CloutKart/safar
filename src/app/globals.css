@@ -1275,6 +1275,15 @@ a.stop-name:hover { text-decoration: underline; }
 .confidence-estimate { background: rgba(243,195,75,.22); color: #765a0b; }
 .confidence-verify { background: rgba(230,111,60,.14); color: var(--orange); }
 
+/* Smart alternatives — "you might also like" */
+.trek-alts-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+.trek-alt-card { display: block; padding: 16px; border: 1px solid var(--line); border-radius: 14px; background: var(--card); text-decoration: none; color: inherit; transition: border-color .15s, transform .15s; }
+.trek-alt-card:hover { border-color: var(--green); transform: translateY(-2px); }
+.trek-alt-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.trek-alt-head strong { font-size: 14px; line-height: 1.25; }
+.trek-alt-where { margin: 4px 0 8px; font-size: 12px; color: var(--muted); }
+.trek-alt-why { margin: 0; font-size: 12.5px; line-height: 1.5; color: var(--ink); }
+
 /* Field intelligence (V1.5) — sourced logistics + hazards */
 .trek-fieldintel h3 { margin: 22px 0 10px; font-size: 15px; }
 .fieldintel-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
@@ -1333,7 +1342,7 @@ a.stop-name:hover { text-decoration: underline; }
   .trek-hero-stats { grid-template-columns: repeat(4, 1fr); }
   .trek-decision-grid, .trek-companion-grid { grid-template-columns: 1fr; }
   .pace-card { grid-column: auto; }
-  .logistics-grid, .fieldintel-grid { grid-template-columns: repeat(2, 1fr); }
+  .logistics-grid, .fieldintel-grid, .trek-alts-grid { grid-template-columns: repeat(2, 1fr); }
 }
 
 @media (max-width: 560px) {
@@ -1341,7 +1350,7 @@ a.stop-name:hover { text-decoration: underline; }
   .trek-immersive-hero h1 { font-size: 3.5rem; }
   .trek-hero-top { align-items: flex-start; }
   .trek-hero-stats { grid-template-columns: repeat(2, 1fr); }
-  .pace-options, .logistics-grid, .fieldintel-grid, .memory-fields { grid-template-columns: 1fr; }
+  .pace-options, .logistics-grid, .fieldintel-grid, .trek-alts-grid, .memory-fields { grid-template-columns: 1fr; }
   .fi-water-list li { grid-template-columns: 48px 1fr; }
   .memory-photos { grid-template-columns: repeat(3, 1fr); }
   .elev-readout { flex-wrap: wrap; }

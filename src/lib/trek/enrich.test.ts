@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { getSeedTrek } from "@/data/treks";
+import { getSeedTrek, treks } from "@/data/treks";
 import { trekEmbeddingText } from "@/lib/trek/schema";
 import {
   crowdHeatmap,
@@ -18,6 +18,7 @@ import {
   waterPlan,
   wildlifeGuide,
   worthItScore,
+  similarTreks,
 } from "@/lib/trek/enrich";
 
 const flat = (groups: ReturnType<typeof trekPacking>) => groups.flatMap((g) => g.items).join(" | ");
@@ -132,5 +133,18 @@ describe("decision-support add-ons", () => {
     expect(photographyGuide(hampta()).some((g) => g.moment === "Drone")).toBe(true);
     expect(trekMatchSummary(hampta())).toContain("Hampta");
     expect(emotionalTrekLine(hampta()).length).toBeGreaterThan(10);
+  });
+});
+
+describe("smart alternatives (similarTreks)", () => {
+  it("returns DNA-near treks, never itself, each with a non-empty reason", () => {
+    const base = getSeedTrek("nag-tibba")!;
+    const alts = similarTreks(base, treks, 3);
+    expect(alts).toHaveLength(3);
+    expect(alts.every((a) => a.trek.slug !== base.slug)).toBe(true);
+    expect(alts.every((a) => a.reason.trim().length > 0)).toBe(true);
+    // A moderate Garhwal favourite should pull another moderate summit at #1,
+    // not an expert glacier expedition.
+    expect(alts[0].trek.difficulty).toBe("moderate");
   });
 });

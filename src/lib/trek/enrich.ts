@@ -1,5 +1,6 @@
 import type { WeatherSummary } from "@/lib/weather";
-import type { Trek } from "@/lib/trek/schema";
+import { dnaVector, TREK_DNA_DIMS, type Trek, type TrekDnaDim } from "@/lib/trek/schema";
+import type { TrailDifficulty } from "@/lib/domain";
 
 // Derived trek-page intelligence — all computed deterministically from a trek's
 // own attributes (DNA, timeline, surface, season), so nothing here is fabricated
@@ -503,4 +504,83 @@ export function landmarkDescription(type: Trek["timeline"][number]["type"]): str
     stream: "Flow changes rapidly after rain",
   };
   return descriptions[type];
+}
+
+// ── Smart alternatives ("you might also like" + why) ─────────────────────────
+// Deterministic neighbours over the unified Trek corpus: Trek-DNA cosine
+// similarity, nudged by a shared difficulty band and region, with a one-line
+// reason explaining WHY — so the suggestion builds decision confidence rather
+// than just listing names.
+export interface SimilarTrek {
+  trek: Trek;
+  reason: string;
+}
+
+const DIFF_RANK: Record<TrailDifficulty, number> = { easy: 0, moderate: 1, hard: 2, expert: 3 };
+
+// Human labels for the DNA dims worth naming in a "similar on X" reason.
+const SIMILAR_DIM_LABEL: Partial<Record<TrekDnaDim, string>> = {
+  views: "views",
+  snow: "snow",
+  forest: "forest",
+  waterfalls: "waterfalls",
+  photography: "photography",
+  camping: "camping",
+  adventure: "adventure",
+};
+
+function cosine(a: number[], b: number[]): number {
+  let dot = 0;
+  let na = 0;
+  let nb = 0;
+  for (let i = 0; i < a.length; i++) {
+    dot += a[i] * b[i];
+    na += a[i] * a[i];
+    nb += b[i] * b[i];
+  }
+  return na === 0 || nb === 0 ? 0 : dot / (Math.sqrt(na) * Math.sqrt(nb));
+}
+
+function similarReason(base: Trek, other: Trek): string {
+  // Dimensions both treks are strong on (the shared character).
+  const shared = TREK_DNA_DIMS.filter(
+    (d) => base.dna[d] >= 7 && other.dna[d] >= 7 && SIMILAR_DIM_LABEL[d],
+  ).map((d) => SIMILAR_DIM_LABEL[d]!);
+  const parts: string[] = [];
+  if (shared.length) parts.push(`Similar ${shared.slice(0, 2).join(" & ")}`);
+
+  const dd = DIFF_RANK[other.difficulty] - DIFF_RANK[base.difficulty];
+  parts.push(
+    dd === 0
+      ? "same difficulty"
+      : dd < 0
+        ? `${dd === -1 ? "one grade" : "much"} easier`
+        : `${dd === 1 ? "a step" : "much"} harder`,
+  );
+
+  const cd = other.dna.crowds - base.dna.crowds;
+  if (cd <= -2) parts.push("and far quieter");
+  else if (cd >= 2) parts.push("but busier");
+
+  // Always say something useful even when DNA overlap is thin.
+  if (parts.length === 1) parts.unshift(`${other.region || other.state}`);
+  return parts.join(", ").replace(", and", " and").replace(", but", " but");
+}
+
+export function similarTreks(base: Trek, all: Trek[], n = 3): SimilarTrek[] {
+  const baseVec = dnaVector(base.dna);
+  return all
+    .filter((t) => t.slug !== base.slug)
+    .map((t) => {
+      let score = cosine(baseVec, dnaVector(t.dna));
+      const dd = Math.abs(DIFF_RANK[t.difficulty] - DIFF_RANK[base.difficulty]);
+      if (dd === 0) score += 0.05;
+      else if (dd === 1) score += 0.02;
+      if (t.region && t.region === base.region) score += 0.03;
+      else if (t.state === base.state) score += 0.015;
+      return { trek: t, score };
+    })
+    .sort((a, b) => b.score - a.score)
+    .slice(0, n)
+    .map((r) => ({ trek: r.trek, reason: similarReason(base, r.trek) }));
 }

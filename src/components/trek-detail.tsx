@@ -20,6 +20,7 @@ import {
   waterPlan,
   wildlifeGuide,
   worthItScore,
+  type SimilarTrek,
 } from "@/lib/trek/enrich";
 import { googleMapsUrl, osmUrl } from "@/lib/trek/exports";
 import { SunPlan } from "@/components/sun-plan";
@@ -73,9 +74,11 @@ function nearestHubs(coords: LatLng | null) {
 export function TrekDetail({
   trek,
   heroImageUrl,
+  alternatives = [],
 }: {
   trek: Trek;
   heroImageUrl: string | null;
+  alternatives?: SimilarTrek[];
 }) {
   const coords = trek.trailheadCoords;
   const hubs = nearestHubs(coords);
@@ -609,6 +612,26 @@ export function TrekDetail({
         <h2>Take it with you</h2>
         <TrekExports trek={trek} />
       </section>
+
+      {/* Smart alternatives — deterministic DNA neighbours with a reason */}
+      {alternatives.length > 0 && (
+        <section className="trek-section trek-alts">
+          <h2>You might also like</h2>
+          <p className="trek-sub">Closest matches by trek character — with why they fit.</p>
+          <div className="trek-alts-grid">
+            {alternatives.map(({ trek: alt, reason }) => (
+              <Link key={alt.slug} className="trek-alt-card" href={`/trek/${alt.slug}`}>
+                <div className="trek-alt-head">
+                  <strong>{alt.name}</strong>
+                  <span className={`trek-grade grade-${alt.difficulty}`}>{alt.difficulty}</span>
+                </div>
+                <p className="trek-alt-where">{alt.region || alt.state}</p>
+                <p className="trek-alt-why">{reason}</p>
+              </Link>
+            ))}
+          </div>
+        </section>
+      )}
 
       {/* Emergency — honest, no fabricated contacts */}
       {trek.emergency && (

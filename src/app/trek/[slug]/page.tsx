@@ -3,7 +3,8 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { TrekDetail } from "@/components/trek-detail";
 import { wikiImageFromCandidates } from "@/lib/research/photos";
-import { getTrek } from "@/lib/trek/store";
+import { similarTreks } from "@/lib/trek/enrich";
+import { getTrek, listTreks } from "@/lib/trek/store";
 
 export const dynamic = "force-dynamic";
 
@@ -40,6 +41,9 @@ export default async function TrekPage({
       trek.region,
     ]));
 
+  // Deterministic neighbours over the unified corpus ("you might also like").
+  const alternatives = similarTreks(trek, await listTreks(), 3);
+
   return (
     <main>
       <header className="nav shell">
@@ -53,7 +57,7 @@ export default async function TrekPage({
       </header>
 
       <section className="shell">
-        <TrekDetail trek={trek} heroImageUrl={heroImage} />
+        <TrekDetail trek={trek} heroImageUrl={heroImage} alternatives={alternatives} />
       </section>
 
       <footer className="footer shell">
