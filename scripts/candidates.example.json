@@ -1,0 +1,26 @@
+[
+  {
+    "name": "Kedarkantha Summit",
+    "state": "Uttarakhand",
+    "region": "Garhwal Himalaya",
+    "nearestCity": "Dehradun",
+    "trailhead": "Sankri",
+    "articleTitle": "Kedarkantha"
+  },
+  {
+    "name": "Valley of Flowers",
+    "state": "Uttarakhand",
+    "region": "Garhwal Himalaya",
+    "nearestCity": "Rishikesh",
+    "trailhead": "Ghangaria",
+    "articleTitle": "Valley of Flowers National Park"
+  },
+  {
+    "name": "Prashar Lake Trek",
+    "state": "Himachal Pradesh",
+    "region": "Dhauladhar",
+    "nearestCity": "Mandi",
+    "trailhead": "Baggi village",
+    "articleTitle": "Prashar Lake"
+  }
+]

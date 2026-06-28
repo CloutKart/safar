@@ -17,6 +17,10 @@
 /.next/
 /out/
 
+# trek ingestion drafts (scripts/ingest-treks.ts)
+/scripts/out/
+/scripts/candidates.json
+
 # production
 /build
 
