@@ -125,44 +125,88 @@ async function elevationAt(coords: [number, number]): Promise<number | null> {
 // ── (B) Experiential draft via the chat LLM ──────────────────────────────────
 // Self-contained OpenAI-compatible call (no app rate-gate) with visible errors
 // and gentle throttling, so a batch stays under the Groq free-tier RPM.
+// Above this, a 429 retry-after signals the daily budget is gone, not a brief
+// per-minute throttle — give up the draft rather than stall the whole batch.
+const MAX_RETRY_WAIT_MS = 75_000;
+
+// The binding Groq free-tier limit is tokens-per-minute (≈12k TPM), not requests.
+// Each draft costs ~2.5k tokens, so pace one call every ~12s to stay under it —
+// ~28 treks in ~6 min with no 429s. Override with INGEST_THROTTLE_MS for a
+// higher-tier key. The retry/backoff above still absorbs any incidental burst.
+const THROTTLE_MS = Number(process.env.INGEST_THROTTLE_MS) || 12_000;
+
+// Seconds to wait after a 429, from the `retry-after` header or the "try again
+// in 12.3s" hint Groq embeds in the error body; falls back to a growing default.
+function retryDelayMs(res: Response, body: string, attempt: number): number {
+  const header = Number(res.headers.get("retry-after"));
+  if (Number.isFinite(header) && header > 0) return Math.ceil(header * 1000) + 500;
+  const m = body.match(/try again in ([\d.]+)s/i);
+  if (m) return Math.ceil(Number(m[1]) * 1000) + 500;
+  return Math.min(60_000, 5_000 * 2 ** attempt);
+}
+
 async function llmJson(system: string, user: string): Promise<unknown | null> {
   const url = process.env.LLM_API_URL;
   const key = process.env.LLM_API_KEY;
   const model = process.env.LLM_MODEL;
   if (!url || !key || !model) return null;
-  const res = await fetch(url, {
-    method: "POST",
-    headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
-    body: JSON.stringify({
-      model,
-      temperature: 0.2,
-      response_format: { type: "json_object" },
-      messages: [
-        { role: "system", content: system },
-        { role: "user", content: user },
-      ],
-    }),
-    signal: AbortSignal.timeout(40_000),
-  }).catch((e) => {
-    console.warn(`  LLM fetch failed: ${String(e)}`);
-    return null;
-  });
-  if (!res) return null;
-  if (!res.ok) {
-    console.warn(`  LLM ${res.status}: ${(await res.text()).slice(0, 160)}`);
-    return null;
+
+  // Free-tier providers throttle on tokens-per-minute; a token-heavy batch hits
+  // 429 in bursts. Honour the provider's retry-after and back off instead of
+  // dropping the trek to the hard-facts-only path.
+  for (let attempt = 0; attempt < 5; attempt++) {
+    const res = await fetch(url, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
+      body: JSON.stringify({
+        model,
+        temperature: 0.2,
+        response_format: { type: "json_object" },
+        messages: [
+          { role: "system", content: system },
+          { role: "user", content: user },
+        ],
+      }),
+      signal: AbortSignal.timeout(40_000),
+    }).catch((e) => {
+      console.warn(`  LLM fetch failed: ${String(e)}`);
+      return null;
+    });
+    if (!res) return null;
+
+    if (res.status === 429) {
+      const body = await res.text();
+      const wait = retryDelayMs(res, body, attempt);
+      // A multi-minute retry-after means the daily/large token budget is spent.
+      // Don't freeze the batch — skip this draft (hard-facts only) so the run
+      // finishes promptly; re-run the rejects once the budget resets.
+      if (wait > MAX_RETRY_WAIT_MS) {
+        console.warn(`  rate cap asks for ${Math.round(wait / 1000)}s (> ${MAX_RETRY_WAIT_MS / 1000}s) — token budget likely spent; skipping draft, re-run later.`);
+        return null;
+      }
+      process.stdout.write(`(rate-limited, waiting ${Math.round(wait / 1000)}s) `);
+      await sleep(wait);
+      continue;
+    }
+    if (!res.ok) {
+      console.warn(`  LLM ${res.status}: ${(await res.text()).slice(0, 160)}`);
+      return null;
+    }
+
+    const payload = (await res.json()) as {
+      choices?: Array<{ message?: { content?: string } }>;
+    };
+    const content = payload.choices?.[0]?.message?.content;
+    if (!content) return null;
+    try {
+      return JSON.parse(content);
+    } catch {
+      console.warn("  LLM returned non-JSON");
+      return null;
+    }
   }
-  const payload = (await res.json()) as {
-    choices?: Array<{ message?: { content?: string } }>;
-  };
-  const content = payload.choices?.[0]?.message?.content;
-  if (!content) return null;
-  try {
-    return JSON.parse(content);
-  } catch {
-    console.warn("  LLM returned non-JSON");
-    return null;
-  }
+  console.warn("  LLM still rate-limited after retries; skipping draft.");
+  return null;
 }
 
 const SYSTEM = `You are a meticulous trek-data editor for "Safar", an Indian trekking planner.
@@ -366,6 +410,29 @@ function dropDefaultsReplacer(key: string, value: unknown): unknown {
   return value;
 }
 
+// Persist all three artifacts from the results so far. Called after EVERY trek
+// so a run interrupted by a rate cap or Ctrl-C keeps the drafts it already has.
+function writeOutputs(results: IngestResult[]): { good: number; bad: number } {
+  mkdirSync(OUT_DIR, { recursive: true });
+  const good = results.filter((r) => r.ok && r.trek).map((r) => r.trek!);
+  const bad = results.filter((r) => !r.ok);
+  const omit = (r: IngestResult, ...keys: Array<keyof IngestResult>) => {
+    const copy: Partial<IngestResult> = { ...r };
+    for (const k of keys) delete copy[k];
+    return copy;
+  };
+  writeFileSync(join(OUT_DIR, "treks-draft.ts"), emitDraftFile(good));
+  writeFileSync(
+    join(OUT_DIR, "ingest-report.json"),
+    JSON.stringify(results.map((r) => omit(r, "trek", "draft")), null, 2),
+  );
+  writeFileSync(
+    join(OUT_DIR, "treks-rejected.json"),
+    JSON.stringify(bad.map((r) => omit(r, "trek")), null, 2),
+  );
+  return { good: good.length, bad: bad.length };
+}
+
 async function main(): Promise<void> {
   loadEnvFiles();
   const args = process.argv.slice(2);
@@ -394,32 +461,13 @@ async function main(): Promise<void> {
     results.push(r);
     console.log(r.ok ? "✓ valid" : `✗ ${r.error?.split("\n")[0] ?? "failed"}`);
     for (const n of r.notes) console.log(`    – ${n}`);
-    await sleep(1300); // stay under Groq free-tier RPM
+    writeOutputs(results); // persist after each trek — survive a rate cap / Ctrl-C
+    await sleep(THROTTLE_MS);
   }
 
-  mkdirSync(OUT_DIR, { recursive: true });
-  const good = results.filter((r) => r.ok && r.trek).map((r) => r.trek!);
-  const bad = results.filter((r) => !r.ok);
-
-  // Strip the heavy parsed objects from the JSON reports — keep just the status.
-  const omit = (r: IngestResult, ...keys: Array<keyof IngestResult>) => {
-    const copy: Partial<IngestResult> = { ...r };
-    for (const k of keys) delete copy[k];
-    return copy;
-  };
-
-  writeFileSync(join(OUT_DIR, "treks-draft.ts"), emitDraftFile(good));
-  writeFileSync(
-    join(OUT_DIR, "ingest-report.json"),
-    JSON.stringify(results.map((r) => omit(r, "trek", "draft")), null, 2),
-  );
-  writeFileSync(
-    join(OUT_DIR, "treks-rejected.json"),
-    JSON.stringify(bad.map((r) => omit(r, "trek")), null, 2),
-  );
-
+  const { good, bad } = writeOutputs(results);
   console.log(
-    `\nDone. ${good.length} valid, ${bad.length} rejected.\n` +
+    `\nDone. ${good} valid, ${bad} rejected.\n` +
       `  → scripts/out/treks-draft.ts      (review, then paste into src/data/treks.ts)\n` +
       `  → scripts/out/ingest-report.json  (verification status per trek)\n` +
       `  → scripts/out/treks-rejected.json (fix the schema errors and re-run)`,
