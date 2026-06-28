@@ -20,7 +20,11 @@ import {
   worthItScore,
   similarTreks,
   shouldIGo,
+  monthSuitability,
 } from "@/lib/trek/enrich";
+
+const levelAt = (cells: ReturnType<typeof monthSuitability>, m: number) =>
+  cells.find((c) => c.month === m)!.level;
 
 const flat = (groups: ReturnType<typeof trekPacking>) => groups.flatMap((g) => g.items).join(" | ");
 
@@ -134,6 +138,19 @@ describe("decision-support add-ons", () => {
     expect(photographyGuide(hampta()).some((g) => g.moment === "Drone")).toBe(true);
     expect(trekMatchSummary(hampta())).toContain("Hampta");
     expect(emotionalTrekLine(hampta()).length).toBeGreaterThan(10);
+  });
+});
+
+describe("calendar heatmap (monthSuitability)", () => {
+  it("marks a winter trek's Dec–Mar ideal and summer monsoon avoid", () => {
+    const cells = monthSuitability(getSeedTrek("kedarkantha")!);
+    expect(cells).toHaveLength(12);
+    expect(levelAt(cells, 1)).toBe("ideal"); // January
+    expect(levelAt(cells, 7)).toBe("avoid"); // July (monsoon, off-season)
+  });
+  it("keeps a monsoon trek's peak months ideal (not down-graded for rain)", () => {
+    const cells = monthSuitability(getSeedTrek("valley-of-flowers")!);
+    expect(levelAt(cells, 8)).toBe("ideal"); // August bloom
   });
 });
 

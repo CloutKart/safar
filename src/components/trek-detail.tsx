@@ -26,6 +26,7 @@ import { googleMapsUrl, osmUrl } from "@/lib/trek/exports";
 import { SunPlan } from "@/components/sun-plan";
 import { TrekConditions } from "@/components/trek-conditions";
 import { TrekShouldIGo } from "@/components/trek-should-i-go";
+import { TrekCalendarHeatmap } from "@/components/trek-calendar";
 import { TrekExports } from "@/components/trek-exports";
 import { TrekReports } from "@/components/trek-reports";
 import { TrekHero } from "@/components/trek-hero";
@@ -155,6 +156,15 @@ export function TrekDetail({
       {coords && (
         <section className="trek-section">
           <TrekConditions trek={trek} coords={coords} />
+        </section>
+      )}
+
+      {/* Best time to go — calendar heatmap */}
+      {trek.bestMonths.length > 0 && (
+        <section className="trek-section">
+          <h2>Best time to go</h2>
+          <p className="trek-sub">Colour-coded by season, altitude and monsoon risk — hover a month for why.</p>
+          <TrekCalendarHeatmap trek={trek} />
         </section>
       )}
 

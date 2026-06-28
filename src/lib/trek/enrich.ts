@@ -567,6 +567,44 @@ function similarReason(base: Trek, other: Trek): string {
   return parts.join(", ").replace(", and", " and").replace(", but", " but");
 }
 
+// ── Calendar heatmap — best time to go ───────────────────────────────────────
+// 12 colour-coded cells from the trek's best months: ideal (in season), okay
+// (shoulder), avoid (off). High-altitude winter is forced to avoid (snowbound /
+// AMS) and landslide-prone months to a caution — except for treks whose season
+// IS the monsoon (e.g. Valley of Flowers).
+export type MonthLevel = "ideal" | "okay" | "avoid";
+export interface MonthCell {
+  month: number; // 1–12
+  level: MonthLevel;
+  note: string;
+}
+
+export function monthSuitability(trek: Trek): MonthCell[] {
+  const best = new Set(trek.bestMonths);
+  const adjacent = (m: number) =>
+    trek.bestMonths.some((b) => Math.min(Math.abs(b - m), 12 - Math.abs(b - m)) === 1);
+  const alt = trek.maxAltitudeM ?? 0;
+  const landslideProne = (trek.hazards?.landslideSegments.length ?? 0) > 0;
+  const isMonsoonTrek = trek.suitability.includes("monsoon");
+
+  return Array.from({ length: 12 }, (_, i): MonthCell => {
+    const month = i + 1;
+    let level: MonthLevel = best.has(month) ? "ideal" : adjacent(month) ? "okay" : "avoid";
+    let note = level === "ideal" ? "Prime window" : level === "okay" ? "Shoulder — check conditions" : "Off-season";
+    // High-altitude deep winter is a hard avoid unless it's an in-season winter trek.
+    if (alt >= 3500 && (month === 12 || month === 1 || month === 2) && level !== "ideal") {
+      level = "avoid";
+      note = "Snowbound / very cold";
+    }
+    // Monsoon landslide caution (Jul–Aug) — but not for monsoon-season treks.
+    if (landslideProne && !isMonsoonTrek && (month === 7 || month === 8) && level === "ideal") {
+      level = "okay";
+      note = "Monsoon — landslide risk on the approach";
+    }
+    return { month, level, note };
+  });
+}
+
 // ── "Should I Go?" — one-tap decision synthesis ──────────────────────────────
 // Combines the vetted terrain/season/weather risk heuristic (trekRisk) with the
 // person-specific signals it can't know (fitness, days available) into a single
