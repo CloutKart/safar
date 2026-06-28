@@ -105,9 +105,9 @@ describe("getTrails curated backbone", () => {
     const trails = await getTrails("chopta", "Chopta and Tungnath");
     expect(trails.length).toBeGreaterThan(0);
     expect(trails.some((t) => /chandrashila/i.test(t.name))).toBe(true);
-    // every curated trail is graded and carries a usable route link
+    // every corpus trail is graded and deep-links into Trek Mode
     expect(trails.every((t) => t.difficulty != null)).toBe(true);
-    expect(trails.every((t) => /^https?:\/\//.test(t.routeUrl ?? ""))).toBe(true);
+    expect(trails.every((t) => /^(https?:\/\/|\/trek\/)/.test(t.routeUrl ?? ""))).toBe(true);
     // the mix includes at least one hidden/offbeat trail
     expect(trails.some((t) => isHiddenTrail(t))).toBe(true);
   });

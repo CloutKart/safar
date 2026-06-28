@@ -9,13 +9,15 @@ import {
 } from "@/lib/cityCoords";
 import type { TrailDifficulty, TrailMeta } from "@/lib/domain";
 import { gemKey } from "@/lib/research/gems";
-import { curatedTrailsFor, type CuratedTrail } from "@/data/trails";
+import { listTreks } from "@/lib/trek/store";
+import type { Trek } from "@/lib/trek/schema";
 
 // Trekking recommender for a destination: aggregates real trails (incl. hidden,
-// low-traffic ones) from a curated backbone plus live OpenStreetMap/Overpass and
-// Reddit hiking communities, then dedupes, scores, derives difficulty, and
-// reserves slots for hidden trails. Live sources are keyless and can fail; the
-// curated layer guarantees trek groups always get real, structured trails.
+// low-traffic ones) from the Trek Knowledge Graph corpus (the single curated
+// source of truth) plus live OpenStreetMap/Overpass and Reddit hiking
+// communities, then dedupes, scores, derives difficulty, and reserves slots for
+// hidden trails. Live sources are keyless and can fail; the corpus layer
+// guarantees trek groups always get real, structured trails.
 
 export type TrailSource = "curated" | "osm" | "reddit";
 
@@ -81,26 +83,48 @@ function altitudeFlags(maxAltM: number | null): { permit: boolean; guide: boolea
   return { permit: false, guide: false };
 }
 
-// ── Curated backbone ─────────────────────────────────────────────────────────
-function fromCurated(slug: string): Trail[] {
-  return curatedTrailsFor(slug).map((t: CuratedTrail) => ({
-    name: t.name,
-    distanceKm: t.distanceKm,
-    elevationGainM: t.elevationGainM,
-    maxAltitudeM: t.maxAltitudeM,
-    difficulty: t.difficulty,
-    durationHours: t.durationHours ?? estimateHours(t.distanceKm, t.elevationGainM),
-    trailhead: t.trailhead,
-    bestMonths: t.bestMonths,
-    permitRequired: t.permitRequired,
-    guideRecommended: t.guideRecommended,
-    routeType: t.routeType,
-    routeUrl: `https://www.google.com/search?q=${encodeURIComponent(`${t.name} trek`)}`,
-    crowdLevel: t.hidden ? "low" : "high",
-    blurb: t.blurb,
-    sources: ["curated"] as TrailSource[],
+// ── Curated backbone: the Trek Knowledge Graph corpus ────────────────────────
+// One source of truth — the planner reads the same first-class Trek records that
+// power Trek Mode. routeUrl deep-links the itinerary stop straight into the rich
+// trek page. crowdLevel is derived from the Trek's DNA so hidden-trail variety
+// selection still works.
+export function trekToTrail(trek: Trek): Trail {
+  const crowdLevel: Trail["crowdLevel"] =
+    trek.dna.crowds <= 3 ? "low" : trek.dna.crowds >= 7 ? "high" : "medium";
+  return {
+    name: trek.name,
+    distanceKm: trek.distanceKm,
+    elevationGainM: trek.elevationGainM,
+    maxAltitudeM: trek.maxAltitudeM,
+    difficulty: trek.difficulty,
+    durationHours: trek.durationHours ?? estimateHours(trek.distanceKm, trek.elevationGainM),
+    trailhead: trek.trailhead || null,
+    bestMonths: trek.bestMonths,
+    permitRequired: trek.permitRequired,
+    guideRecommended: trek.guideRecommended,
+    routeType: trek.routeType,
+    routeUrl: `/trek/${trek.slug}`,
+    crowdLevel,
+    blurb: trek.blurb,
+    sources: ["curated"],
     score: 0,
-  }));
+  };
+}
+
+// Treks for a destination: those explicitly linked via `destinationSlug`, plus
+// any whose trailhead sits within ~70 km of the destination (a day's reach from
+// that base). Proximity catches the offbeat/standalone treks that carry no slug.
+const TREK_NEAR_KM = 70;
+async function fromTreks(slug: string, coords: LatLng | null): Promise<Trail[]> {
+  const all = await listTreks();
+  const chosen = all.filter(
+    (t) =>
+      (slug !== "" && t.destinationSlug === slug) ||
+      (coords != null &&
+        t.trailheadCoords != null &&
+        haversineKm(coords, t.trailheadCoords) <= TREK_NEAR_KM),
+  );
+  return chosen.map(trekToTrail);
 }
 
 async function resolveCoords(city: string): Promise<LatLng | null> {
@@ -371,11 +395,12 @@ export async function getTrails(
   knownCoords?: LatLng | null,
   limit = 6,
 ): Promise<Trail[]> {
-  // Curated trails are pure data — always available, even offline / in tests.
-  const curated = fromCurated(slug);
-  // Keep the test suite hermetic — only the live fetchers reach the network.
-  if (process.env.NODE_ENV === "test")
-    return selectTrailsWithVariety(mergeTrails([curated]), limit);
+  // Keep the test suite hermetic — only the live fetchers reach the network. The
+  // corpus layer is pure data, always available (even offline / in tests).
+  if (process.env.NODE_ENV === "test") {
+    const corpus = await fromTreks(slug, knownCoords ?? null);
+    return selectTrailsWithVariety(mergeTrails([corpus]), limit);
+  }
   const key = gemKey(name) || slug;
   const cached = trailCache.get(key);
   if (cached && Date.now() - cached.at < TRAIL_TTL_MS)
@@ -383,11 +408,12 @@ export async function getTrails(
   // Prefer caller-supplied coords (the catalog slug's exact location) over
   // re-resolving a multi-word display name like "Chopta and Tungnath".
   const coords = knownCoords ?? (await resolveCoords(name).catch(() => null));
-  const [osm, reddit] = await Promise.all([
+  const [corpus, osm, reddit] = await Promise.all([
+    fromTreks(slug, coords),
     coords ? fromOverpass(coords).catch(() => []) : Promise.resolve([]),
     fromReddit(name).catch(() => []),
   ]);
-  const trails = mergeTrails([curated, osm, reddit]);
+  const trails = mergeTrails([corpus, osm, reddit]);
   trailCache.set(key, { trails, at: Date.now() });
   return selectTrailsWithVariety(trails, limit);
 }

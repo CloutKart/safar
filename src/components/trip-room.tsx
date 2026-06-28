@@ -2051,6 +2051,17 @@ function PlanCard({
                             {chip}
                           </span>
                         ))}
+                      {stop.trail.routeUrl && (
+                        <a
+                          className="trail-link"
+                          href={stop.trail.routeUrl}
+                          {...(stop.trail.routeUrl.startsWith("/")
+                            ? {}
+                            : { target: "_blank", rel: "noopener noreferrer" })}
+                        >
+                          {stop.trail.routeUrl.startsWith("/trek/") ? "View trek →" : "Route ↗"}
+                        </a>
+                      )}
                     </span>
                   )}
                   {stop.approxInr != null && (

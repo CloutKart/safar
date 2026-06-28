@@ -421,6 +421,8 @@ a.stop-name:hover { text-decoration: underline; }
 .stop-dish { color: #f0b87a; font-size: 11px; }
 .stop-trail-meta { display: inline-flex; flex-wrap: wrap; gap: 4px; margin-left: 6px; vertical-align: middle; }
 .trail-chip { font-size: 9.5px; padding: 1px 6px; border-radius: 99px; background: rgba(120,170,255,.1); color: #9cc0ff; white-space: nowrap; }
+.trail-link { font-size: 9.5px; padding: 1px 6px; border-radius: 99px; background: rgba(120,170,255,.22); color: #bcd4ff; white-space: nowrap; text-decoration: none; font-weight: 600; }
+.trail-link:hover { background: rgba(120,170,255,.34); }
 .stop-review { display: block; margin: 1px 0 0 2px; font-size: 10.5px; font-style: italic; color: var(--r-faint); line-height: 1.4; }
 .gem { margin-right: 1px; }
 .plan-stay { margin: 3px 0 0; font-size: 11.5px; color: var(--r-muted); }

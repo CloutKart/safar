@@ -115,7 +115,13 @@ export const TrailMetaSchema = z.object({
   permitRequired: z.boolean().default(false),
   guideRecommended: z.boolean().default(false),
   routeType: z.enum(["loop", "out-and-back", "point-to-point"]).nullable().default(null),
-  routeUrl: z.string().url().nullable().default(null),
+  // Either an external route URL (OSM/map) or an internal Trek-Mode deep link
+  // ("/trek/<slug>") now that the corpus is the curated backbone.
+  routeUrl: z
+    .string()
+    .refine((s) => /^https?:\/\//.test(s) || s.startsWith("/"), "absolute URL or path")
+    .nullable()
+    .default(null),
   // true when this is a low-traffic / community-recommended offbeat trail.
   hidden: z.boolean().default(false),
 });
