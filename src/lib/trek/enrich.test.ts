@@ -21,6 +21,8 @@ import {
   similarTreks,
   shouldIGo,
   monthSuitability,
+  expandedTimeline,
+  stepMarkers,
 } from "@/lib/trek/enrich";
 
 const levelAt = (cells: ReturnType<typeof monthSuitability>, m: number) =>
@@ -138,6 +140,25 @@ describe("decision-support add-ons", () => {
     expect(photographyGuide(hampta()).some((g) => g.moment === "Drone")).toBe(true);
     expect(trekMatchSummary(hampta())).toContain("Hampta");
     expect(emotionalTrekLine(hampta()).length).toBeGreaterThan(10);
+  });
+});
+
+describe("expanded timeline + step markers", () => {
+  it("adds synthesised steps, stays ascending, and keeps every real waypoint", () => {
+    const trek = getSeedTrek("nag-tibba")!;
+    const steps = expandedTimeline(trek);
+    expect(steps.length).toBeGreaterThan(trek.timeline.length);
+    for (let i = 1; i < steps.length; i++) expect(steps[i].km).toBeGreaterThanOrEqual(steps[i - 1].km);
+    for (const w of trek.timeline) expect(steps.some((s) => s.km === w.km && !s.synthesized)).toBe(true);
+    expect(steps.some((s) => s.synthesized)).toBe(true);
+  });
+  it("marks the summit with golden-hour + photo, and a camp with a tent", () => {
+    const trek = getSeedTrek("kedarkantha")!;
+    const steps = expandedTimeline(trek);
+    const summit = steps.find((s) => s.type === "summit")!;
+    expect(stepMarkers(trek, summit, steps)).toEqual(expect.arrayContaining(["🌅", "📸"]));
+    const camp = steps.find((s) => s.type === "camp");
+    if (camp) expect(stepMarkers(trek, camp, steps)).toContain("⛺");
   });
 });
 

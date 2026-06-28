@@ -506,6 +506,110 @@ export function landmarkDescription(type: Trek["timeline"][number]["type"]): str
   return descriptions[type];
 }
 
+// ── Visual trail journey: synthesised steps + per-step markers ────────────────
+// Most timelines are sparse (avg ~3.8 steps). expandedTimeline enriches them with
+// deterministic intermediate steps derived from the trek's own data (forest
+// stretch, water source, the view opening up) using GENERIC labels — no invented
+// named landmarks. Real waypoints are always kept; synthetic ones are flagged.
+type WaypointType = Trek["timeline"][number]["type"];
+export interface TimelineStep {
+  km: number;
+  label: string;
+  description: string;
+  photoUrl: string | null;
+  type: WaypointType;
+  synthesized: boolean;
+}
+
+const round1 = (n: number) => Math.round(n * 10) / 10;
+
+export function expandedTimeline(trek: Trek): TimelineStep[] {
+  const real: TimelineStep[] = trek.timeline.map((w) => ({
+    km: w.km,
+    label: w.label,
+    description: w.description,
+    photoUrl: w.photoUrl,
+    type: w.type,
+    synthesized: false,
+  }));
+  if (real.length === 0) return [];
+  const sorted = [...real].sort((a, b) => a.km - b.km);
+  if (real.length >= 7) return sorted; // already rich enough
+
+  // Place synthetic steps along the actual route length (max timeline km), never
+  // past the last real waypoint (so a round-trip distanceKm can't push steps off).
+  const maxKm = Math.max(...real.map((s) => s.km)) || 1;
+  const hasType = (ty: WaypointType) => real.some((s) => s.type === ty);
+  const candidates: TimelineStep[] = [];
+
+  const forested = trek.dna.forest >= 6 || trek.surface.some((s) => s.kind === "forest" && s.pct >= 25);
+  if (forested && !hasType("forest")) {
+    candidates.push({
+      km: round1(maxKm * 0.22),
+      label: "Forest stretch",
+      type: "forest",
+      photoUrl: null,
+      synthesized: true,
+      description: "Shaded climb through the treeline — softer ground and cooler air.",
+    });
+  }
+  const water = trek.waterReliability;
+  if (water && !hasType("water") && !hasType("stream")) {
+    candidates.push({
+      km: water.afterKm ?? round1(maxKm * 0.45),
+      label: "Water source",
+      type: "water",
+      photoUrl: null,
+      synthesized: true,
+      description:
+        water.status === "none-after-km"
+          ? "Last reliable refill — fill up before the dry stretch."
+          : "A refill point — treat before drinking.",
+    });
+  }
+  const bigView = (trek.scenicDensity?.ridge ?? 0) >= 7 || (trek.scenicDensity?.summitPayoff ?? 0) >= 7;
+  if (bigView && !hasType("viewpoint")) {
+    candidates.push({
+      km: round1(maxKm * 0.78),
+      label: "The view opens up",
+      type: "viewpoint",
+      photoUrl: null,
+      synthesized: true,
+      description: "The trees fall away and the range fills the horizon.",
+    });
+  }
+
+  // Drop a synthetic step that lands too close to a real one (no clutter/dupes).
+  const gap = Math.max(maxKm * 0.06, 0.5);
+  const merged = [...real];
+  for (const c of candidates) {
+    if (merged.length >= 9) break;
+    if (merged.some((s) => Math.abs(s.km - c.km) < gap)) continue;
+    merged.push(c);
+  }
+  return merged.sort((a, b) => a.km - b.km);
+}
+
+const VIEW_TYPES: WaypointType[] = ["summit", "viewpoint", "ridge", "pass", "lake"];
+
+// Emoji markers for a step: 🌅 golden hour (the primary view), 💧 water, ⛺ camp,
+// 📸 photo spot, 🐾 wildlife-likely. `all` is the full step list (to find the one
+// primary viewpoint to flag for sunrise).
+export function stepMarkers(trek: Trek, step: TimelineStep, all: TimelineStep[]): string[] {
+  const markers: string[] = [];
+  const primary = all.find((s) => s.type === "summit") ?? all.find((s) => VIEW_TYPES.includes(s.type));
+  if (primary && step.km === primary.km && step.type === primary.type) markers.push("🌅");
+  const waterKm = trek.waterReliability?.afterKm;
+  if (["water", "stream", "waterfall"].includes(step.type) || (waterKm != null && Math.abs(step.km - waterKm) < 0.6)) {
+    markers.push("💧");
+  }
+  if (step.type === "camp") markers.push("⛺");
+  if (VIEW_TYPES.includes(step.type)) markers.push("📸");
+  const wildlifeLikely = (trek.hazards?.wildlife.length ?? 0) > 0 || trek.dna.forest >= 6;
+  if (wildlifeLikely && (step.type === "forest" || step.type === "meadow")) markers.push("🐾");
+  return markers;
+}
+
 // ── Smart alternatives ("you might also like" + why) ─────────────────────────
 // Deterministic neighbours over the unified Trek corpus: Trek-DNA cosine
 // similarity, nudged by a shared difficulty band and region, with a one-line
