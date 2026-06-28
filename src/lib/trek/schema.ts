@@ -107,6 +107,50 @@ const TrekDifficultyVizSchema = z.object({
   technical: z.number().int().min(1).max(5),
 });
 
+// ── Field intelligence (V1.5) ────────────────────────────────────────────────
+// Granular, verifiable logistics/safety drawn from sourced field reports (not
+// LLM guesses). All optional + nullable so the existing corpus stays valid and
+// the page hides any block left unset. "Unknown" is a first-class value — the
+// honest answer when reliable data is missing, never a fabricated one.
+
+// A specific water source along the trail, with its km marker and reliability.
+const WaterSourceSchema = z.object({
+  km: z.number().nonnegative().nullable().default(null),
+  name: z.string(),
+  reliability: z.enum(["reliable", "seasonal", "unreliable"]).default("seasonal"),
+  note: z.string().default(""),
+});
+
+// Logistics + navigation + rescue intel. Enums carry an "unknown" member so an
+// absent fact reads as "we don't know" rather than a misleading default.
+const TrekLogisticsSchema = z.object({
+  connectivity: z.string().default(""), // mobile-network summary by segment
+  lastReliableSignal: z.string().default(""), // where signal drops
+  nearestATM: z.string().default(""),
+  nearestMedical: z.string().default(""),
+  toilets: z.enum(["trailhead", "camps", "none", "unknown"]).default("unknown"),
+  gpx: z.enum(["official", "community", "none", "unknown"]).default("unknown"),
+  trailMarkings: z
+    .enum(["excellent", "good", "moderate", "poor", "unknown"])
+    .default("unknown"),
+  // Rescue difficulty 1 (easy road evac) … 5 (helicopter-only / none), + why.
+  rescueDifficulty: z.number().int().min(1).max(5).nullable().default(null),
+  rescueNote: z.string().default(""),
+  porters: z.enum(["yes", "no", "unknown"]).default("unknown"),
+  mules: z.enum(["yes", "no", "unknown"]).default("unknown"),
+  permitsNote: z.string().default(""),
+});
+
+// Sourced hazard intelligence. Honest framing: a curated field report, NOT a
+// live landslide/avalanche/weather feed — always verify locally.
+const TrekHazardsSchema = z.object({
+  landslideSegments: z.array(z.string()).default([]),
+  avalancheSegments: z.array(z.string()).default([]),
+  lightningExposure: z.string().default(""),
+  riverCrossings: z.number().int().nonnegative().nullable().default(null),
+  wildlife: z.array(z.string()).default([]),
+});
+
 export const TrekSchema = z.object({
   // ── Identity & logistics (superset of TrailMeta) ──
   slug: z.string(),
@@ -193,6 +237,10 @@ export const TrekSchema = z.object({
     })
     .nullable()
     .default(null),
+  // ── Field intelligence (V1.5) — granular sourced logistics/safety ──
+  waterSources: z.array(WaterSourceSchema).default([]),
+  logistics: TrekLogisticsSchema.nullable().default(null),
+  hazards: TrekHazardsSchema.nullable().default(null),
   // Production semantic-recall vector (pgvector). Null in dev / fallback path.
   embedding: z.array(z.number()).nullable().default(null),
 });

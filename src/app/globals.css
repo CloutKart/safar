@@ -1273,6 +1273,28 @@ a.stop-name:hover { text-decoration: underline; }
 .confidence-estimate { background: rgba(243,195,75,.22); color: #765a0b; }
 .confidence-verify { background: rgba(230,111,60,.14); color: var(--orange); }
 
+/* Field intelligence (V1.5) — sourced logistics + hazards */
+.trek-fieldintel h3 { margin: 22px 0 10px; font-size: 15px; }
+.fieldintel-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+.fi-card { padding: 14px 16px; border: 1px solid var(--line); border-radius: 14px; background: var(--card); }
+.fi-card.fi-wide { grid-column: 1 / -1; }
+.fi-card .fi-label { display: block; font: 9px var(--font-mono), monospace; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); margin-bottom: 6px; }
+.fi-card p { margin: 2px 0; font-size: 13px; line-height: 1.5; color: var(--ink); }
+.fi-card p.fi-dim { color: var(--muted); font-size: 12px; }
+.fi-card .fi-cap { text-transform: capitalize; }
+.fi-rescue { font: 700 20px var(--font-mono), monospace; }
+.fi-rescue-1, .fi-rescue-2 { color: var(--green); }
+.fi-rescue-3 { color: #b07a0b; }
+.fi-rescue-4, .fi-rescue-5 { color: var(--orange); }
+.fi-water-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.fi-water-list li { display: grid; grid-template-columns: 56px 1fr auto; align-items: baseline; gap: 10px; padding: 9px 12px; border: 1px solid var(--line); border-left-width: 3px; border-radius: 10px; background: var(--card); font-size: 13px; }
+.fi-water-km { font: 11px var(--font-mono), monospace; color: var(--muted); }
+.fi-water-rel { font: 9px var(--font-mono), monospace; text-transform: uppercase; letter-spacing: .05em; color: var(--muted); }
+.fi-water-note { grid-column: 2 / -1; color: var(--muted); font-size: 12px; }
+.fi-water-reliable { border-left-color: var(--green); }
+.fi-water-seasonal { border-left-color: #d8a526; }
+.fi-water-unreliable { border-left-color: var(--orange); }
+
 .packing-controls { display: flex; align-items: center; flex-wrap: wrap; gap: 16px; margin-bottom: 12px; }
 .packing-controls label { display: inline-flex; align-items: center; gap: 8px; font-size: 14px; cursor: pointer; }
 .packing-controls input { width: 16px; height: 16px; accent-color: var(--green); }
@@ -1309,7 +1331,7 @@ a.stop-name:hover { text-decoration: underline; }
   .trek-hero-stats { grid-template-columns: repeat(4, 1fr); }
   .trek-decision-grid, .trek-companion-grid { grid-template-columns: 1fr; }
   .pace-card { grid-column: auto; }
-  .logistics-grid { grid-template-columns: repeat(2, 1fr); }
+  .logistics-grid, .fieldintel-grid { grid-template-columns: repeat(2, 1fr); }
 }
 
 @media (max-width: 560px) {
@@ -1317,7 +1339,8 @@ a.stop-name:hover { text-decoration: underline; }
   .trek-immersive-hero h1 { font-size: 3.5rem; }
   .trek-hero-top { align-items: flex-start; }
   .trek-hero-stats { grid-template-columns: repeat(2, 1fr); }
-  .pace-options, .logistics-grid, .memory-fields { grid-template-columns: 1fr; }
+  .pace-options, .logistics-grid, .fieldintel-grid, .memory-fields { grid-template-columns: 1fr; }
+  .fi-water-list li { grid-template-columns: 48px 1fr; }
   .memory-photos { grid-template-columns: repeat(3, 1fr); }
   .elev-readout { flex-wrap: wrap; }
 }

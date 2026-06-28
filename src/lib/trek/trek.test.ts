@@ -9,8 +9,10 @@ import { parseTrekQuery, recommendTreks, scoreTrek } from "@/lib/trek/recommend"
 const intent = (partial: Record<string, unknown>) => TrekIntentSchema.parse(partial);
 
 describe("seed corpus integrity", () => {
-  it("loads 20 treks, each with coords and a full 12-dim DNA", () => {
-    expect(treks).toHaveLength(20);
+  it("loads the seed corpus, each with coords and a full 12-dim DNA", () => {
+    expect(treks.length).toBeGreaterThanOrEqual(39);
+    const slugs = treks.map((t) => t.slug);
+    expect(new Set(slugs).size).toBe(slugs.length); // no duplicate slugs
     for (const t of treks) {
       expect(t.trailheadCoords).not.toBeNull();
       for (const dim of TREK_DNA_DIMS) expect(typeof t.dna[dim]).toBe("number");

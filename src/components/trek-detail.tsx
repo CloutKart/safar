@@ -447,6 +447,129 @@ export function TrekDetail({
         </div>
       </section>
 
+      {/* Field intelligence — sourced logistics + hazards (V1.5) */}
+      {(trek.logistics || trek.waterSources.length > 0 || trek.hazards) && (
+        <section className="trek-section trek-fieldintel">
+          <h2>Field intelligence</h2>
+          <p className="trek-sub">
+            Sourced logistics &amp; hazard notes from field reports — a curated
+            baseline, not a live feed. Always verify locally.
+          </p>
+
+          {trek.logistics && (
+            <div className="fieldintel-grid">
+              {trek.logistics.rescueDifficulty != null && (
+                <article className="fi-card">
+                  <span className="fi-label">Rescue difficulty</span>
+                  <strong className={`fi-rescue fi-rescue-${trek.logistics.rescueDifficulty}`}>
+                    {trek.logistics.rescueDifficulty}/5
+                  </strong>
+                  {trek.logistics.rescueNote && <p>{trek.logistics.rescueNote}</p>}
+                </article>
+              )}
+              {trek.logistics.connectivity && (
+                <article className="fi-card">
+                  <span className="fi-label">Mobile network</span>
+                  <p>{trek.logistics.connectivity}</p>
+                  {trek.logistics.lastReliableSignal && (
+                    <p className="fi-dim">Last reliable: {trek.logistics.lastReliableSignal}</p>
+                  )}
+                </article>
+              )}
+              {trek.logistics.gpx !== "unknown" && (
+                <article className="fi-card">
+                  <span className="fi-label">GPX track</span>
+                  <p className="fi-cap">{trek.logistics.gpx}</p>
+                  {trek.logistics.trailMarkings !== "unknown" && (
+                    <p className="fi-dim">Markings: {trek.logistics.trailMarkings}</p>
+                  )}
+                </article>
+              )}
+              {(trek.logistics.porters !== "unknown" || trek.logistics.mules !== "unknown") && (
+                <article className="fi-card">
+                  <span className="fi-label">Support</span>
+                  <p>Porters: <span className="fi-cap">{trek.logistics.porters}</span></p>
+                  <p>Mules: <span className="fi-cap">{trek.logistics.mules}</span></p>
+                </article>
+              )}
+              {trek.logistics.toilets !== "unknown" && (
+                <article className="fi-card">
+                  <span className="fi-label">Toilets</span>
+                  <p className="fi-cap">{trek.logistics.toilets}</p>
+                </article>
+              )}
+              {(trek.logistics.nearestATM || trek.logistics.nearestMedical) && (
+                <article className="fi-card">
+                  <span className="fi-label">Nearest services</span>
+                  {trek.logistics.nearestATM && <p>ATM: {trek.logistics.nearestATM}</p>}
+                  {trek.logistics.nearestMedical && <p>Medical: {trek.logistics.nearestMedical}</p>}
+                </article>
+              )}
+              {trek.logistics.permitsNote && (
+                <article className="fi-card fi-wide">
+                  <span className="fi-label">Permits</span>
+                  <p>{trek.logistics.permitsNote}</p>
+                </article>
+              )}
+            </div>
+          )}
+
+          {trek.waterSources.length > 0 && (
+            <div className="fi-water">
+              <h3>Water sources</h3>
+              <ul className="fi-water-list">
+                {trek.waterSources.map((w, i) => (
+                  <li key={`${w.name}-${i}`} className={`fi-water-${w.reliability}`}>
+                    <span className="fi-water-km">{w.km != null ? `${w.km} km` : "—"}</span>
+                    <strong>{w.name}</strong>
+                    <span className="fi-water-rel">{w.reliability}</span>
+                    {w.note && <span className="fi-water-note">{w.note}</span>}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+
+          {trek.hazards && (
+            <div className="fi-hazards">
+              <h3>Hazard notes</h3>
+              <div className="fieldintel-grid">
+                {trek.hazards.riverCrossings != null && (
+                  <article className="fi-card">
+                    <span className="fi-label">River crossings</span>
+                    <strong>{trek.hazards.riverCrossings}</strong>
+                  </article>
+                )}
+                {trek.hazards.landslideSegments.length > 0 && (
+                  <article className="fi-card">
+                    <span className="fi-label">Landslide-prone</span>
+                    <p>{trek.hazards.landslideSegments.join("; ")}</p>
+                  </article>
+                )}
+                {trek.hazards.avalancheSegments.length > 0 && (
+                  <article className="fi-card">
+                    <span className="fi-label">Avalanche-prone</span>
+                    <p>{trek.hazards.avalancheSegments.join("; ")}</p>
+                  </article>
+                )}
+                {trek.hazards.lightningExposure && (
+                  <article className="fi-card">
+                    <span className="fi-label">Lightning exposure</span>
+                    <p>{trek.hazards.lightningExposure}</p>
+                  </article>
+                )}
+                {trek.hazards.wildlife.length > 0 && (
+                  <article className="fi-card fi-wide">
+                    <span className="fi-label">Wildlife encountered</span>
+                    <p>{trek.hazards.wildlife.join(" · ")}</p>
+                  </article>
+                )}
+              </div>
+            </div>
+          )}
+        </section>
+      )}
+
       {/* Proximity + trip integration teaser */}
       {(hubs.length > 0 || destination) && (
         <section className="trek-section trek-integrate">
