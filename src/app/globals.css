@@ -1275,6 +1275,25 @@ a.stop-name:hover { text-decoration: underline; }
 .confidence-estimate { background: rgba(243,195,75,.22); color: #765a0b; }
 .confidence-verify { background: rgba(230,111,60,.14); color: var(--orange); }
 
+/* "Should I go?" — one-tap decision synthesis */
+.should-i-go { border: 1px solid var(--line); border-radius: 18px; padding: 20px; background: var(--card); }
+.sig-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+.sig-verdict { display: inline-flex; align-items: center; gap: 8px; padding: 8px 14px; border-radius: 99px; font-size: 15px; font-weight: 700; }
+.sig-verdict em { font-style: normal; font-weight: 500; font-size: 11px; opacity: .8; }
+.verdict-go { background: rgba(46,166,110,.18); color: var(--green); }
+.verdict-caution { background: rgba(243,195,75,.22); color: #9a751a; }
+.verdict-wait { background: rgba(120,170,255,.18); color: #5b86d6; }
+.verdict-another { background: rgba(230,111,60,.16); color: var(--orange); }
+.sig-controls { display: flex; gap: 14px; flex-wrap: wrap; margin: 14px 0 6px; }
+.sig-controls label { display: flex; flex-direction: column; gap: 4px; font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: .04em; }
+.sig-controls select, .sig-controls input { padding: 7px 10px; border: 1px solid var(--line); border-radius: 10px; background: var(--paper); color: var(--ink); font-size: 13px; color-scheme: light dark; }
+.sig-controls input { width: 96px; }
+.sig-reasons { list-style: none; margin: 12px 0 0; padding: 0; display: grid; gap: 5px; }
+.sig-reasons li { font-size: 13px; line-height: 1.5; color: var(--ink); }
+.sig-alt { margin: 12px 0 0; font-size: 13px; }
+.sig-alt a { color: var(--green); font-weight: 600; text-decoration: none; }
+.sig-note { margin: 12px 0 0; font-size: 11px; color: var(--muted); line-height: 1.5; }
+
 /* Smart alternatives — "you might also like" */
 .trek-alts-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
 .trek-alt-card { display: block; padding: 16px; border: 1px solid var(--line); border-radius: 14px; background: var(--card); text-decoration: none; color: inherit; transition: border-color .15s, transform .15s; }

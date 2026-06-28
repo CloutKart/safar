@@ -19,6 +19,7 @@ import {
   wildlifeGuide,
   worthItScore,
   similarTreks,
+  shouldIGo,
 } from "@/lib/trek/enrich";
 
 const flat = (groups: ReturnType<typeof trekPacking>) => groups.flatMap((g) => g.items).join(" | ");
@@ -133,6 +134,24 @@ describe("decision-support add-ons", () => {
     expect(photographyGuide(hampta()).some((g) => g.moment === "Drone")).toBe(true);
     expect(trekMatchSummary(hampta())).toContain("Hampta");
     expect(emotionalTrekLine(hampta()).length).toBeGreaterThan(10);
+  });
+});
+
+describe("should I go? synthesizer", () => {
+  const clear = { lowC: 8, highC: 18, rainPct: 10, typical: false };
+  it("says Go for an in-season easy trek and Choose another for an off-season winter summit", () => {
+    expect(shouldIGo(getSeedTrek("deoria-tal")!, { month: 5, fitness: "beginner", weather: clear }).verdict).toBe("Go");
+    // Kedarkantha is a Dec–Apr trek; July is monsoon → structural, not a "wait".
+    expect(shouldIGo(getSeedTrek("kedarkantha")!, { month: 7, fitness: "beginner", weather: clear }).verdict).toBe("Choose another");
+  });
+  it("routes transient heavy weather to Wait a week, not Choose another", () => {
+    const r = shouldIGo(getSeedTrek("triund")!, { month: 5, fitness: "intermediate", weather: { ...clear, rainPct: 85 } });
+    expect(r.verdict).toBe("Wait a week");
+  });
+  it("penalises a too-hard trek for a beginner with too few days", () => {
+    const r = shouldIGo(getSeedTrek("kanamo-peak")!, { month: 6, fitness: "beginner", days: 1, weather: clear });
+    expect(r.verdict).toBe("Choose another");
+    expect(r.score).toBeLessThan(50);
   });
 });
 

@@ -25,6 +25,7 @@ import {
 import { googleMapsUrl, osmUrl } from "@/lib/trek/exports";
 import { SunPlan } from "@/components/sun-plan";
 import { TrekConditions } from "@/components/trek-conditions";
+import { TrekShouldIGo } from "@/components/trek-should-i-go";
 import { TrekExports } from "@/components/trek-exports";
 import { TrekReports } from "@/components/trek-reports";
 import { TrekHero } from "@/components/trek-hero";
@@ -109,6 +110,18 @@ export function TrekDetail({
         <p className="eyebrow">Why Safar thinks this trek works</p>
         <h2>{trekMatchSummary(trek)}</h2>
         {trek.description && <p>{trek.description}</p>}
+      </section>
+
+      <section className="trek-section">
+        <TrekShouldIGo
+          trek={trek}
+          coords={coords}
+          alternative={
+            alternatives[0]
+              ? { slug: alternatives[0].trek.slug, name: alternatives[0].trek.name }
+              : null
+          }
+        />
       </section>
 
       <section className="trek-section trek-decision-grid">

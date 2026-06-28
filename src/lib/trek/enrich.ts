@@ -567,6 +567,106 @@ function similarReason(base: Trek, other: Trek): string {
   return parts.join(", ").replace(", and", " and").replace(", but", " but");
 }
 
+// ── "Should I Go?" — one-tap decision synthesis ──────────────────────────────
+// Combines the vetted terrain/season/weather risk heuristic (trekRisk) with the
+// person-specific signals it can't know (fitness, days available) into a single
+// verdict + reasons. Deterministic; works with or without live weather. A
+// decision aid, never a safety guarantee — verify locally.
+export type GoVerdict = "Go" | "Go with caution" | "Wait a week" | "Choose another";
+export type Fitness = "beginner" | "intermediate" | "experienced";
+export interface ShouldIGoInputs {
+  month?: number | null;
+  weather?: WeatherSummary | null;
+  fitness?: Fitness | null;
+  days?: number | null;
+}
+export interface ShouldIGo {
+  verdict: GoVerdict;
+  score: number; // 0–100 confidence to go now
+  reasons: string[];
+}
+
+// Rough number of days a trek realistically needs (acclimatisation included),
+// from distance / altitude / route type — for the "you have N days" check.
+export function estimateTrekDays(trek: Trek): number {
+  const km = trek.distanceKm ?? 0;
+  const alt = trek.maxAltitudeM ?? 0;
+  if (trek.routeType === "point-to-point" || km > 45 || alt >= 5000)
+    return Math.max(5, Math.ceil(km / 14));
+  if (km > 18 || alt >= 3800) return Math.max(2, Math.ceil(km / 16));
+  return 1;
+}
+
+export function shouldIGo(trek: Trek, input: ShouldIGoInputs = {}): ShouldIGo {
+  const month = input.month ?? null;
+  const weather = input.weather ?? null;
+  const risk = trekRisk(trek, month, weather);
+  const reasons: string[] = [];
+  let score = 100;
+
+  // Vetted terrain/season/weather risk (altitude, grade, season, rain, guide…).
+  score -= risk.level === "Extreme" ? 48 : risk.level === "High" ? 28 : risk.level === "Moderate" ? 12 : 0;
+
+  // Season standing (also routes Wait-vs-Choose below).
+  const seasonOff =
+    month != null && trek.bestMonths.length > 0 && !trek.bestMonths.includes(month);
+  const seasonAdjacent =
+    seasonOff && trek.bestMonths.some((m) => Math.min(Math.abs(m - month!), 12 - Math.abs(m - month!)) === 1);
+  if (month != null && trek.bestMonths.includes(month)) reasons.push("✓ In season for this month");
+  else if (seasonAdjacent) reasons.push("⚠ Shoulder season — conditions can swing");
+  else if (seasonOff) reasons.push("⚠ Out of season — often snowbound or poor");
+  if (seasonOff) score -= seasonAdjacent ? 4 : 12;
+
+  // Live weather (transient — drives a "Wait a week" rather than "Choose another").
+  let weatherDriven = false;
+  if (weather) {
+    if (weather.rainPct >= 70) {
+      weatherDriven = true;
+      reasons.push(`⚠ Heavy rain forecast (${weather.rainPct}%) at the trailhead`);
+    } else if (weather.rainPct <= 25) {
+      reasons.push(`✓ Clear-ish forecast (${weather.rainPct}% rain)`);
+    }
+  } else {
+    reasons.push("• Live weather unavailable — verdict from season & terrain");
+  }
+  if (weatherDriven) score -= 10; // transient — drives "Wait a week", not "no"
+
+  // Person-specific: completion confidence at the chosen fitness (trekRisk can't
+  // know who's asking).
+  const cc = trek.completionConfidence;
+  const fitness = input.fitness ?? null;
+  if (cc && fitness) {
+    const pct = fitness === "experienced" ? cc.experiencedPct : fitness === "intermediate" ? cc.intermediatePct : cc.beginnerPct;
+    if (pct < 40) { score -= 25; reasons.push(`⚠ Only ~${pct}% of ${fitness} trekkers finish this comfortably`); }
+    else if (pct < 55) { score -= 14; reasons.push(`⚠ A stretch for ${fitness} level (~${pct}% finish comfortably)`); }
+    else if (pct < 70) { score -= 6; reasons.push(`• Doable at ${fitness} level (~${pct}% finish comfortably)`); }
+    else reasons.push(`✓ Well within reach at ${fitness} level (~${pct}%)`);
+  }
+
+  // Person-specific: days available vs days needed.
+  const needed = estimateTrekDays(trek);
+  if (input.days != null && input.days < needed) {
+    score -= 14;
+    reasons.push(`⚠ Needs ~${needed} day${needed > 1 ? "s" : ""}; you have ${input.days}`);
+  } else if (input.days != null) {
+    reasons.push(`✓ ${input.days} day${input.days > 1 ? "s" : ""} is enough (needs ~${needed})`);
+  }
+
+  // Carry the single most important terrain factor so the verdict is grounded.
+  if (risk.level !== "Low" && risk.factors[0]) reasons.push(`⚠ ${risk.factors[0]}`);
+
+  score = Math.max(0, Math.min(100, Math.round(score)));
+
+  // Score sets the baseline; overrides route by whether the blocker is structural
+  // (wrong season / mismatch → pick a different trek) or transient (weather → wait).
+  let verdict: GoVerdict = score >= 72 ? "Go" : score >= 50 ? "Go with caution" : "Choose another";
+  if (seasonOff && !seasonAdjacent) verdict = "Choose another";
+  else if (weatherDriven && verdict !== "Choose another") verdict = "Wait a week";
+  else if (seasonAdjacent && verdict === "Go") verdict = "Go with caution";
+
+  return { verdict, score, reasons: reasons.slice(0, 6) };
+}
+
 export function similarTreks(base: Trek, all: Trek[], n = 3): SimilarTrek[] {
   const baseVec = dnaVector(base.dna);
   return all
