@@ -1761,4 +1761,224 @@ export const TREK_PHOTOS: Record<string, TrekPhoto[]> = {
       "sourceUrl": "https://commons.wikimedia.org/w/index.php?curid=90097051"
     }
   ],
+  "kashmir-great-lakes": [
+    {
+      "url": "https://upload.wikimedia.org/wikipedia/commons/6/6a/Kashmir_great_lakes_trek.jpg",
+      "title": "Kashmir great lakes trek",
+      "credit": "Adventure pulse trekkers",
+      "license": "CC BY 4.0",
+      "sourceUrl": "https://commons.wikimedia.org/w/index.php?curid=167190899"
+    },
+    {
+      "url": "https://upload.wikimedia.org/wikipedia/commons/3/30/Kashmir_Great_Lakes.jpg",
+      "title": "Kashmir Great Lakes",
+      "credit": "Prajna Prabhu",
+      "license": "CC0 1.0",
+      "sourceUrl": "https://commons.wikimedia.org/w/index.php?curid=150899207"
+    },
+    {
+      "url": "https://live.staticflickr.com/3101/2464485541_853c834a4e_b.jpg",
+      "title": "Activity on Kegonsa",
+      "credit": "shahbasharat",
+      "license": "CC BY 2.0",
+      "sourceUrl": "https://www.flickr.com/photos/20681804@N03/2464485541"
+    },
+    {
+      "url": "https://upload.wikimedia.org/wikipedia/commons/6/66/Dal_lake%2CSrinagar.jpg",
+      "title": "Dal lake,Srinagar",
+      "credit": "Parthsarthi Namdeo",
+      "license": "CC BY-SA 4.0",
+      "sourceUrl": "https://commons.wikimedia.org/w/index.php?curid=49517207"
+    },
+    {
+      "url": "https://upload.wikimedia.org/wikipedia/commons/6/6f/Sonmarg%2C_Kashmir.jpg",
+      "title": "Sonmarg, Kashmir",
+      "credit": "Biswarup Bhattacharjee",
+      "license": "CC BY-SA 4.0",
+      "sourceUrl": "https://commons.wikimedia.org/w/index.php?curid=49795885"
+    },
+    {
+      "url": "https://upload.wikimedia.org/wikipedia/commons/c/cb/Vishansar_Lake.jpg",
+      "title": "Vishansar Lake",
+      "credit": "Mehrajmir13",
+      "license": "CC BY-SA 3.0",
+      "sourceUrl": "https://commons.wikimedia.org/w/index.php?curid=20475221"
+    }
+  ],
+  "sandakphu-phalut": [
+    {
+      "url": "https://live.staticflickr.com/77/155056103_9d6771658f_b.jpg",
+      "title": "vally",
+      "credit": "anirbanbiswas_c8",
+      "license": "CC BY-SA 2.0",
+      "sourceUrl": "https://www.flickr.com/photos/25966716@N00/155056103"
+    },
+    {
+      "url": "https://live.staticflickr.com/1128/526504443_0c72ecbd39_b.jpg",
+      "title": "Lightning forest and pastures",
+      "credit": "Boggin",
+      "license": "CC BY-SA 2.0",
+      "sourceUrl": "https://www.flickr.com/photos/11974061@N00/526504443"
+    },
+    {
+      "url": "https://live.staticflickr.com/25/63156943_67f91d3480_b.jpg",
+      "title": "The Himalayan Majesty",
+      "credit": "solarshakti",
+      "license": "CC BY 2.0",
+      "sourceUrl": "https://www.flickr.com/photos/73109955@N00/63156943"
+    },
+    {
+      "url": "https://live.staticflickr.com/31/63156944_fabaff6dcc_b.jpg",
+      "title": "The Panorama",
+      "credit": "solarshakti",
+      "license": "CC BY 2.0",
+      "sourceUrl": "https://www.flickr.com/photos/73109955@N00/63156944"
+    },
+    {
+      "url": "https://upload.wikimedia.org/wikipedia/commons/8/87/Foggy_meadow.jpg",
+      "title": "Foggy meadow",
+      "credit": "Priyabrata Mukhopadhyay",
+      "license": "CC BY-SA 4.0",
+      "sourceUrl": "https://commons.wikimedia.org/w/index.php?curid=36065079"
+    },
+    {
+      "url": "https://upload.wikimedia.org/wikipedia/commons/4/4a/A_tourist_sitting_beside_Kalipokhri_Lake_in_West_Bengal.jpg",
+      "title": "A tourist sitting beside Kalipokhri Lake in West Bengal",
+      "credit": "Adwartising",
+      "license": "CC BY-SA 4.0",
+      "sourceUrl": "https://commons.wikimedia.org/w/index.php?curid=131525175"
+    }
+  ],
+  "goecha-la": [
+    {
+      "url": "https://upload.wikimedia.org/wikipedia/commons/8/8f/An_Indian_hiker_at_the_Goecha_La_Trek%2C_in_West_Sikkim_district_of_Sikkim%2C_photographed_by_Yogabrata_Chakraborty%2C_on_October_18%2C_2021.jpg",
+      "title": "An Indian hiker at the Goecha La Trek, in West Sikkim district of Sikkim, photographed by Yogabrata Chakraborty, on Octo",
+      "credit": "Billjones94",
+      "license": "CC BY-SA 4.0",
+      "sourceUrl": "https://commons.wikimedia.org/w/index.php?curid=131799816"
+    },
+    {
+      "url": "https://upload.wikimedia.org/wikipedia/commons/b/b7/Indian_hikers_with_country_flag_on_hills_of_Goecha_La_Trek%2C_in_West_Sikkim_district_of_Sikkim%2C_photographed_by_Yogabrata_Chakraborty%2C_on_October_18%2C_2021.jpg",
+      "title": "Indian hikers with country flag on hills of Goecha La Trek, in West Sikkim district of Sikkim, photographed by Yogabrata",
+      "credit": "Billjones94",
+      "license": "CC BY-SA 4.0",
+      "sourceUrl": "https://commons.wikimedia.org/w/index.php?curid=131799724"
+    },
+    {
+      "url": "https://upload.wikimedia.org/wikipedia/commons/8/88/Kangchenjunga_from_Thangshing.jpg",
+      "title": "Kangchenjunga from Thangshing",
+      "credit": "Carsten.nebel",
+      "license": "CC BY-SA 3.0",
+      "sourceUrl": "https://commons.wikimedia.org/w/index.php?curid=3488380"
+    },
+    {
+      "url": "https://live.staticflickr.com/7054/6879116355_8b84d0cb21_b.jpg",
+      "title": "Yuksam",
+      "credit": "souravdas",
+      "license": "CC BY 2.0",
+      "sourceUrl": "https://www.flickr.com/photos/23531860@N00/6879116355"
+    },
+    {
+      "url": "https://upload.wikimedia.org/wikipedia/commons/d/d3/Mt._Pandim%2C_Sikkim.jpg",
+      "title": "Mt. Pandim, Sikkim",
+      "credit": "Atulbhats",
+      "license": "CC BY-SA 4.0",
+      "sourceUrl": "https://commons.wikimedia.org/w/index.php?curid=68993297"
+    },
+    {
+      "url": "https://upload.wikimedia.org/wikipedia/commons/3/36/Yuksam_%286879116355%29.jpg",
+      "title": "Yuksam (6879116355)",
+      "credit": "Sourav Das from Bay Area, USA",
+      "license": "CC BY 2.0",
+      "sourceUrl": "https://commons.wikimedia.org/w/index.php?curid=105219267"
+    }
+  ],
+  "stok-kangri": [
+    {
+      "url": "https://live.staticflickr.com/80/212508989_994f6691eb.jpg",
+      "title": "Stok Kangri , Leh",
+      "credit": "kun0me",
+      "license": "CC BY-SA 2.0",
+      "sourceUrl": "https://www.flickr.com/photos/58081089@N00/212508989"
+    },
+    {
+      "url": "https://live.staticflickr.com/3911/14979943001_7b4b7f226d_b.jpg",
+      "title": "Basecamp Stok Kangri",
+      "credit": "Jorn Eriksson",
+      "license": "CC BY 2.0",
+      "sourceUrl": "https://www.flickr.com/photos/35585149@N04/14979943001"
+    },
+    {
+      "url": "https://live.staticflickr.com/3912/15028820446_e99f370da9_b.jpg",
+      "title": "Stok kangri",
+      "credit": "Jorn Eriksson",
+      "license": "CC BY 2.0",
+      "sourceUrl": "https://www.flickr.com/photos/35585149@N04/15028820446"
+    },
+    {
+      "url": "https://live.staticflickr.com/3910/14783222540_4baf79f50e_b.jpg",
+      "title": "Stok Kangri Expedition",
+      "credit": "Jorn Eriksson",
+      "license": "CC BY 2.0",
+      "sourceUrl": "https://www.flickr.com/photos/35585149@N04/14783222540"
+    },
+    {
+      "url": "https://live.staticflickr.com/5592/14960040896_06f09b5b7b_b.jpg",
+      "title": "Stok Kangri (6153) Summit",
+      "credit": "Jorn Eriksson",
+      "license": "CC BY 2.0",
+      "sourceUrl": "https://www.flickr.com/photos/35585149@N04/14960040896"
+    },
+    {
+      "url": "https://live.staticflickr.com/3125/2579250425_4de7c69834_b.jpg",
+      "title": "Camp @ Leh Valley",
+      "credit": "wildxplorer",
+      "license": "CC BY 2.0",
+      "sourceUrl": "https://www.flickr.com/photos/21932201@N04/2579250425"
+    }
+  ],
+  "markha-valley": [
+    {
+      "url": "https://upload.wikimedia.org/wikipedia/commons/2/26/A_lake_near_Kang_Yatze%2C_Markha_Valley_trek%2C_Ladakh%2C_India_%282006%29.jpg",
+      "title": "A lake near Kang Yatze, Markha Valley trek, Ladakh, India (2006)",
+      "credit": "SlartibErtfass der bertige",
+      "license": "CC BY-SA 3.0",
+      "sourceUrl": "https://commons.wikimedia.org/w/index.php?curid=9826769"
+    },
+    {
+      "url": "https://live.staticflickr.com/65535/48990390468_4e2b8dd1ac_b.jpg",
+      "title": "Markha River",
+      "credit": "Chris Hunkeler",
+      "license": "CC BY-SA 2.0",
+      "sourceUrl": "https://www.flickr.com/photos/14913305@N00/48990390468"
+    },
+    {
+      "url": "https://live.staticflickr.com/65535/48991138922_ce053dcaa5_b.jpg",
+      "title": "Markha River and Nearby Mountains",
+      "credit": "Chris Hunkeler",
+      "license": "CC BY-SA 2.0",
+      "sourceUrl": "https://www.flickr.com/photos/14913305@N00/48991138922"
+    },
+    {
+      "url": "https://live.staticflickr.com/4086/5194135988_944004a654.jpg",
+      "title": "Markha Valley",
+      "credit": "optomic",
+      "license": "CC BY 2.0",
+      "sourceUrl": "https://www.flickr.com/photos/45627532@N00/5194135988"
+    },
+    {
+      "url": "https://upload.wikimedia.org/wikipedia/commons/3/34/Markha_River_and_Nearby_Mountains_%2848991138922%29.jpg",
+      "title": "Markha River and Nearby Mountains (48991138922)",
+      "credit": "Chris Hunkeler from Carlsbad, California, USA",
+      "license": "CC BY-SA 2.0",
+      "sourceUrl": "https://commons.wikimedia.org/w/index.php?curid=99909049"
+    },
+    {
+      "url": "https://upload.wikimedia.org/wikipedia/commons/5/54/The_View_From_the_Lookout_Point_%2848994220387%29.jpg",
+      "title": "The View From the Lookout Point (48994220387)",
+      "credit": "Chris Hunkeler from Carlsbad, California, USA",
+      "license": "CC BY-SA 2.0",
+      "sourceUrl": "https://commons.wikimedia.org/w/index.php?curid=99909260"
+    }
+  ],
 };

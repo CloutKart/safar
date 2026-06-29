@@ -87,7 +87,7 @@ const SUPPLEMENTAL: Record<string, string[]> = {
   "sandakphu-phalut": ["Sandakphu", "Kanchenjunga from Sandakphu", "Sleeping Buddha Himalaya", "Phalut"],
   "goecha-la": ["Goecha La", "Dzongri Sikkim", "Kanchenjunga Goecha La", "Samiti Lake"],
   "stok-kangri": ["Stok Kangri", "Stok Kangri summit Ladakh"],
-  "markha-valley-trek": ["Markha Valley", "Kang Yatse", "Nimaling Ladakh"],
+  "markha-valley": ["Markha Valley", "Kang Yatse", "Nimaling Ladakh"],
   "valley-of-flowers": ["Valley of Flowers National Park", "Hemkund Sahib", "Pushpawati valley"],
   "kuari-pass": ["Gorson Bugyal", "Nanda Devi from Kuari Pass", "Auli Uttarakhand"],
   "dzukou-valley": ["Dzukou Valley", "Japfu Peak", "Dzukou lily"],
