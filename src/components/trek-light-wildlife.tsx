@@ -1,30 +1,31 @@
-import type { WildlifeShot } from "@/lib/trek/imagery";
+import type { TrekPhoto } from "@/lib/trek/schema";
+import { PhotoCredit } from "@/components/trek-trail-journey";
 
-// A visual band: a golden-hour shot and likely-wildlife photos for the trek's
-// region. Purely presentational; all images are representative of the terrain /
-// species, not the exact trek (labelled as such), complementing the date-aware
-// sun planner and the wildlife-likelihood guide.
+// A visual band of the trek's OWN real photos: a golden-hour shot and any
+// wildlife captured on the trek. Renders only what actually exists in the pool —
+// nothing representative, and nothing at all when neither is available.
 export function TrekLightWildlife({
-  goldenImage,
+  golden,
   wildlife,
 }: {
-  goldenImage: string;
-  wildlife: WildlifeShot[];
+  golden: TrekPhoto | null;
+  wildlife: TrekPhoto[];
 }) {
+  if (!golden && wildlife.length === 0) return null;
+  const tiles: Array<{ photo: TrekPhoto; caption: string }> = [];
+  if (golden) tiles.push({ photo: golden, caption: "🌅 Golden hour" });
+  for (const w of wildlife) tiles.push({ photo: w, caption: w.title });
+
   return (
     <div className="light-wildlife">
-      <figure className="lw-tile lw-golden" style={{ backgroundImage: `url("${goldenImage}")` }}>
-        <figcaption>
-          🌅 Golden hour
-          <span className="lw-tag">representative</span>
-        </figcaption>
-      </figure>
-      {wildlife.map((w, i) => (
-        <figure key={i} className="lw-tile" style={{ backgroundImage: `url("${w.url}")` }}>
-          <figcaption>
-            {w.species}
-            <span className="lw-tag">representative</span>
-          </figcaption>
+      {tiles.map(({ photo, caption }, i) => (
+        <figure
+          key={i}
+          className={`lw-tile${i === 0 && golden ? " lw-golden" : ""}`}
+          style={{ backgroundImage: `url("${photo.url.replaceAll('"', "%22")}")` }}
+        >
+          <figcaption>{caption}</figcaption>
+          <PhotoCredit photo={photo} />
         </figure>
       ))}
     </div>

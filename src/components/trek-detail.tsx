@@ -34,9 +34,9 @@ import { TrekAdvisor } from "@/components/trek-advisor";
 import { TrekExports } from "@/components/trek-exports";
 import { TrekReports } from "@/components/trek-reports";
 import { TrekHero } from "@/components/trek-hero";
-import { TrekTrailJourney, type JourneyStep } from "@/components/trek-trail-journey";
+import { TrekTrailJourney, type JourneyStep, PhotoCredit } from "@/components/trek-trail-journey";
 import { TrekLightWildlife } from "@/components/trek-light-wildlife";
-import { goldenHourImage, waypointImage, wildlifeImages } from "@/lib/trek/imagery";
+import { assignStepPhotos, trekGoldenPhoto, trekWildlifePhotos } from "@/lib/trek/photo-pool";
 import { TrekPackingAssistant } from "@/components/trek-packing-assistant";
 import { TrekMemory } from "@/components/trek-memory";
 
@@ -96,33 +96,31 @@ export function TrekDetail({
   const heatmap = crowdHeatmap(trek);
   const traffic = trafficEstimate(trek);
   const elevation = elevationProfile(trek);
-  // Expanded, image-resolved trail steps (server-side) for the visual journey.
+  // Expanded trail steps with a REAL photo from the trek's pool (or none) —
+  // resolved server-side.
   const expanded = expandedTimeline(trek);
-  const journeySteps: JourneyStep[] = expanded.map((s) => {
-    const img = waypointImage(trek, s);
-    return {
-      km: s.km,
-      label: s.label,
-      description: s.description || landmarkDescription(s.type),
-      type: s.type,
-      synthesized: s.synthesized,
-      imageUrl: img.url,
-      representative: img.representative,
-      markers: stepMarkers(trek, s, expanded),
-    };
-  });
-  // Light & wildlife imagery, and a picture for each hidden moment (the nearest
-  // trail-step image, else the golden-hour shot).
-  const golden = goldenHourImage(trek);
-  const wildlifeShots = wildlifeImages(trek);
-  const hiddenWithImage = trek.hiddenMoments.map((m) => {
-    let imageUrl = golden;
+  const stepPhotos = assignStepPhotos(trek, expanded);
+  const journeySteps: JourneyStep[] = expanded.map((s, i) => ({
+    km: s.km,
+    label: s.label,
+    description: s.description || landmarkDescription(s.type),
+    type: s.type,
+    synthesized: s.synthesized,
+    markers: stepMarkers(trek, s, expanded),
+    photo: stepPhotos[i],
+  }));
+  // Real golden-hour / wildlife shots (band) and a photo for each hidden moment
+  // (the nearest trail step's photo, else none) — never a stand-in.
+  const goldenPhoto = trekGoldenPhoto(trek);
+  const wildlifePhotos = trekWildlifePhotos(trek);
+  const hiddenWithPhoto = trek.hiddenMoments.map((m) => {
+    let photo: JourneyStep["photo"] = null;
     if (m.km != null && journeySteps.length > 0) {
-      imageUrl = journeySteps.reduce((best, s) =>
+      photo = journeySteps.reduce((best, s) =>
         Math.abs(s.km - m.km!) < Math.abs(best.km - m.km!) ? s : best,
-      ).imageUrl;
+      ).photo;
     }
-    return { text: m.text, km: m.km, imageUrl };
+    return { text: m.text, km: m.km, photo };
   });
   const efficiency = travelEfficiency(trek, hubs[0]?.km ?? null);
   const worth = worthItScore(trek, efficiency);
@@ -259,9 +257,9 @@ export function TrekDetail({
         <section className="trek-section">
           <h2>The trail, km by km</h2>
           <p className="trek-sub">
-            A photo at every step — hover the elevation or a step to follow the route.
-            Images tagged &ldquo;representative&rdquo; show the terrain type, not the exact spot;
-            elevation is estimated, not DEM/survey data.
+            Hover the elevation or a step to follow the route. Photos are real,
+            CC-licensed shots of this trek (credited); elevation is estimated, not
+            DEM/survey data.
           </p>
           <TrekTrailJourney steps={journeySteps} points={elevation} />
         </section>
@@ -284,19 +282,23 @@ export function TrekDetail({
         </section>
       )}
 
-      {/* Hidden moments — the Safar soul, now with a picture each */}
-      {hiddenWithImage.length > 0 && (
+      {/* Hidden moments — the Safar soul, with a real photo when one exists */}
+      {hiddenWithPhoto.length > 0 && (
         <section className="trek-section trek-hidden">
           <h2>🤫 Hidden moments</h2>
           <div className="hm-grid">
-            {hiddenWithImage.map((m, i) => (
-              <article key={i} className="hm-card">
-                <span
-                  className="hm-photo"
-                  style={{ backgroundImage: `url("${m.imageUrl.replaceAll('"', "%22")}")` }}
-                  role="img"
-                  aria-label="A representative moment along the trail"
-                />
+            {hiddenWithPhoto.map((m, i) => (
+              <article key={i} className={`hm-card${m.photo ? "" : " hm-nophoto"}`}>
+                {m.photo && (
+                  <span
+                    className="hm-photo"
+                    style={{ backgroundImage: `url("${m.photo.url.replaceAll('"', "%22")}")` }}
+                    role="img"
+                    aria-label={m.photo.title || "A moment along the trail"}
+                  >
+                    <PhotoCredit photo={m.photo} />
+                  </span>
+                )}
                 <p>
                   {m.km != null && <span className="hm-km">{m.km} km</span>}
                   {m.text}
@@ -307,11 +309,11 @@ export function TrekDetail({
         </section>
       )}
 
-      {/* Sun & golden hour (date-aware, client) + light/wildlife image band */}
+      {/* Sun & golden hour (date-aware, client) + real light/wildlife band */}
       {coords && (
         <section className="trek-section">
           <SunPlan coords={coords} hoursToViewpoint={hoursToViewpoint} />
-          <TrekLightWildlife goldenImage={golden} wildlife={wildlifeShots} />
+          <TrekLightWildlife golden={goldenPhoto} wildlife={wildlifePhotos} />
         </section>
       )}
 

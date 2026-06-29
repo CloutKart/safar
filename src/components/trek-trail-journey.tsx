@@ -2,6 +2,8 @@
 
 import { useState } from "react";
 import type { ElevationPoint } from "@/lib/trek/enrich";
+import type { TrekPhoto } from "@/lib/trek/schema";
+import { creditName } from "@/lib/trek/photo-pool";
 import { InteractiveElevation } from "@/components/interactive-elevation";
 
 export interface JourneyStep {
@@ -10,9 +12,8 @@ export interface JourneyStep {
   description: string;
   type: string;
   synthesized: boolean;
-  imageUrl: string;
-  representative: boolean;
   markers: string[];
+  photo: TrekPhoto | null;
 }
 
 function icon(type: string): string {
@@ -37,10 +38,20 @@ function nearestStep(steps: JourneyStep[], km: number): number {
   return best;
 }
 
+export function PhotoCredit({ photo }: { photo: TrekPhoto }) {
+  const text = `📷 ${creditName(photo.credit)}${photo.license ? ` · ${photo.license}` : ""}`;
+  return photo.sourceUrl ? (
+    <a className="photo-credit" href={photo.sourceUrl} target="_blank" rel="noopener noreferrer">
+      {text}
+    </a>
+  ) : (
+    <span className="photo-credit">{text}</span>
+  );
+}
+
 // The visual trail journey: the elevation profile and the photo-timeline share a
-// single `activeKm` — hovering a step moves the elevation cursor, and scrubbing
-// the chart highlights the matching step. Images are resolved server-side and
-// passed in (no client fetch).
+// single `activeKm`. Each step shows a REAL photo of this trek (or none) — no
+// representative stand-ins — with attribution.
 export function TrekTrailJourney({
   steps,
   points,
@@ -61,20 +72,22 @@ export function TrekTrailJourney({
         {steps.map((s, i) => (
           <li
             key={i}
-            className={`tl-${s.type}${i === activeIdx ? " tl-active" : ""}`}
+            className={`tl-${s.type}${i === activeIdx ? " tl-active" : ""}${s.photo ? "" : " tl-nophoto"}`}
             style={{ animationDelay: `${i * 70}ms` }}
             onPointerEnter={() => setActiveKm(s.km)}
             onFocus={() => setActiveKm(s.km)}
             tabIndex={0}
           >
-            <span
-              className="tl-photo"
-              style={{ backgroundImage: `url("${s.imageUrl.replaceAll('"', "%22")}")` }}
-              role="img"
-              aria-label={`${s.label} — ${s.representative ? "representative terrain" : "trail landmark"}`}
-            >
-              {s.representative && <span className="tl-photo-tag">representative</span>}
-            </span>
+            {s.photo && (
+              <span
+                className="tl-photo"
+                style={{ backgroundImage: `url("${s.photo.url.replaceAll('"', "%22")}")` }}
+                role="img"
+                aria-label={s.photo.title || s.label}
+              >
+                <PhotoCredit photo={s.photo} />
+              </span>
+            )}
             <span className="tl-icon" aria-hidden="true">{icon(s.type)}</span>
             <span className="tl-km">{s.km} km</span>
             <span className="tl-label">
