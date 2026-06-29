@@ -1025,9 +1025,6 @@ a.stop-name:hover { text-decoration: underline; }
 .tl-label { font-size: 15px; }
 .tl-icon { font-size: 20px; color: var(--green); line-height: 1; }
 .tl-description { grid-column: 3; margin-top: 4px; font-size: 12px; line-height: 1.5; color: var(--muted); }
-.tl-photo { position: relative; grid-column: 1 / -1; width: 100%; aspect-ratio: 16 / 9; margin-bottom: 12px; border-radius: 14px; overflow: hidden; background-color: var(--line); }
-/* Oversized layer (15% overscan top & bottom) translated on scroll for parallax. */
-.tl-photo-img { position: absolute; left: 0; right: 0; top: -15%; height: 130%; background-size: cover; background-position: center; transform: translate3d(0,0,0); will-change: transform; }
 /* Attribution overlay required for CC-BY / BY-SA reuse. */
 .photo-credit { position: absolute; bottom: 6px; right: 6px; max-width: 90%; padding: 2px 7px; border-radius: 99px; background: rgba(0,0,0,.6); color: #f3f3f3; font-size: 9px; text-decoration: none; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .photo-credit:hover { background: rgba(0,0,0,.78); }
@@ -1036,6 +1033,21 @@ a.stop-name:hover { text-decoration: underline; }
 .trek-timeline li.tl-active { background: color-mix(in srgb, var(--green) 8%, transparent); }
 .trek-timeline li.tl-active::before { box-shadow: 0 0 0 4px color-mix(in srgb, var(--green) 28%, transparent); }
 .trek-journey { display: flex; flex-direction: column; gap: 18px; }
+
+/* Cinematic full-bleed trail gallery — one screen-filling, parallax photo per
+   step, caption overlaid (mirrors .trek-immersive-hero). Full-bleed via the
+   100vw centring trick since .trek-detail is max-width:none. */
+.trek-cinema { width: 100vw; margin-left: calc(50% - 50vw); }
+.cine-panel { position: relative; height: 100svh; min-height: 560px; overflow: hidden; background-color: var(--ink); }
+.cine-img { position: absolute; inset: -14% 0; height: 128%; background-size: cover; background-position: center; transform: translate3d(0,0,0); will-change: transform; }
+/* Bottom-weighted scrim for caption legibility (same ramp as the immersive hero). */
+.cine-panel::after { content: ""; position: absolute; inset: 0; pointer-events: none; background: linear-gradient(180deg, rgba(7,24,19,.10) 0%, rgba(7,24,19,.04) 34%, rgba(7,24,19,.42) 64%, rgba(7,24,19,.92) 100%); }
+.cine-cap { position: absolute; z-index: 2; left: 0; bottom: 0; width: 100%; max-width: 1180px; margin: 0 auto; padding: clamp(26px, 5vw, 64px); color: #fff; }
+.cine-eyebrow { margin: 0 0 10px; color: var(--lime); font: 600 12px/1 var(--font-mono), monospace; text-transform: uppercase; letter-spacing: .14em; }
+.cine-label { margin: 0; font-size: clamp(2.2rem, 5.5vw, 4.6rem); font-weight: 800; letter-spacing: -.05em; line-height: .98; text-wrap: balance; }
+.cine-desc { max-width: 640px; margin: 14px 0 0; font-size: clamp(1rem, 1.6vw, 1.2rem); line-height: 1.55; color: rgba(255,255,255,.86); }
+.cine-markers { margin: 14px 0 0; font-size: 20px; letter-spacing: 4px; }
+.cine-panel > .photo-credit { left: auto; right: clamp(16px, 3vw, 34px); bottom: clamp(16px, 3vw, 34px); z-index: 3; font-size: 10px; }
 
 /* Light & wildlife image band */
 .light-wildlife { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; margin-top: 16px; }

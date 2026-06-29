@@ -35,6 +35,7 @@ import { TrekExports } from "@/components/trek-exports";
 import { TrekReports } from "@/components/trek-reports";
 import { TrekHero } from "@/components/trek-hero";
 import { TrekTrailJourney, type JourneyStep, PhotoCredit } from "@/components/trek-trail-journey";
+import { TrekCinematicTrail } from "@/components/trek-cinematic-trail";
 import { TrekLightWildlife } from "@/components/trek-light-wildlife";
 import { assignStepPhotos, trekGoldenPhoto, trekWildlifePhotos } from "@/lib/trek/photo-pool";
 import { TrekPackingAssistant } from "@/components/trek-packing-assistant";
@@ -252,14 +253,18 @@ export function TrekDetail({
         </section>
       )}
 
-      {/* The journey, km by km — elevation + photo-timeline, hover-synced */}
+      {/* Cinematic full-bleed photo scroll — real, credited shots, parallax */}
+      {journeySteps.some((s) => s.photo) && (
+        <TrekCinematicTrail steps={journeySteps} />
+      )}
+
+      {/* The journey, km by km — elevation + step list, hover-synced */}
       {journeySteps.length > 0 && (
         <section className="trek-section">
           <h2>The trail, km by km</h2>
           <p className="trek-sub">
-            Hover the elevation or a step to follow the route. Photos are real,
-            CC-licensed shots of this trek (credited); elevation is estimated, not
-            DEM/survey data.
+            Hover the elevation or a step to follow the route. Elevation is
+            estimated, not DEM/survey data.
           </p>
           <TrekTrailJourney steps={journeySteps} points={elevation} />
         </section>
