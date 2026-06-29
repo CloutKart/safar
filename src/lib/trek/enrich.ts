@@ -265,18 +265,31 @@ export interface PaceEstimate {
   note: string;
 }
 
+// Walking pace derived from THIS trek's distance + elevation gain (Naismith-style:
+// ~3.5 km/h plus ~500 m of ascent per hour), NOT a flat authored duration — so the
+// numbers actually vary trek to trek. For a multi-day trek the hours are PER DAY
+// (total effort ÷ estimated days), which the page labels accordingly.
 export function paceEstimates(trek: Trek): PaceEstimate[] {
-  const average =
-    trek.durationHours ??
-    Math.max(
-      1,
-      (trek.distanceKm ?? 5) / 3.5 + (trek.elevationGainM ?? 0) / 550,
-    );
+  const days = estimateTrekDays(trek);
+  const singlePush = Math.max(
+    1,
+    (trek.distanceKm ?? 5) / 3.5 + (trek.elevationGainM ?? 0) / 500,
+  );
+  const perDay = days > 1 ? singlePush / days : singlePush;
   const round = (value: number) => Math.round(value * 2) / 2;
+  // Round to the nearest half-hour, then keep Fast < Average < Relaxed strictly
+  // distinct (coarse rounding can otherwise tie them for low-per-day treks).
+  const avg = round(perDay);
+  let fast = round(perDay * 0.8);
+  let relaxed = round(perDay * 1.3);
+  if (fast >= avg) fast = avg - 0.5;
+  if (relaxed <= avg) relaxed = avg + 0.5;
+  fast = Math.max(0.5, fast);
+  const steady = days > 1 ? "steady pace, a typical day" : "steady pace with normal breaks";
   return [
-    { label: "Fast", hours: round(average * 0.78), note: "fit pace, short photo stops" },
-    { label: "Average", hours: round(average), note: "steady pace with normal breaks" },
-    { label: "Relaxed", hours: round(average * 1.32), note: "long rests and photo time" },
+    { label: "Fast", hours: fast, note: "fit pace, short stops" },
+    { label: "Average", hours: avg, note: steady },
+    { label: "Relaxed", hours: relaxed, note: "long rests and photo time" },
   ];
 }
 

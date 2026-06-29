@@ -8,6 +8,7 @@ import {
   crowdHeatmap,
   elevationProfile,
   emotionalTrekLine,
+  estimateTrekDays,
   expandedTimeline,
   landmarkDescription,
   paceEstimates,
@@ -126,6 +127,7 @@ export function TrekDetail({
   const efficiency = travelEfficiency(trek, hubs[0]?.km ?? null);
   const worth = worthItScore(trek, efficiency);
   const paces = paceEstimates(trek);
+  const trekDays = estimateTrekDays(trek);
   const wildlife = wildlifeGuide(trek);
   const photoGuide = photographyGuide(trek);
   const footwear = terrainFootwear(trek);
@@ -178,11 +180,11 @@ export function TrekDetail({
           <small>{worth.reasons.join(" · ")}</small>
         </div>
         <div className="decision-card pace-card">
-          <span>Pace calculator</span>
+          <span>Pace calculator{trekDays > 1 ? ` · ~${trekDays} days` : ""}</span>
           <div className="pace-options">
             {paces.map((pace) => (
               <div key={pace.label}>
-                <strong>{pace.hours}h</strong>
+                <strong>{pace.hours}h{trekDays > 1 ? "/day" : ""}</strong>
                 <b>{pace.label}</b>
                 <small>{pace.note}</small>
               </div>

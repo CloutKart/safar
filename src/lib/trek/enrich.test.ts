@@ -23,6 +23,7 @@ import {
   monthSuitability,
   expandedTimeline,
   stepMarkers,
+  estimateTrekDays,
 } from "@/lib/trek/enrich";
 
 const levelAt = (cells: ReturnType<typeof monthSuitability>, m: number) =>
@@ -113,6 +114,16 @@ describe("decision-support add-ons", () => {
     expect(fast.hours).toBeGreaterThan(0);
     expect(fast.hours).toBeLessThan(avg.hours);
     expect(avg.hours).toBeLessThan(relaxed.hours);
+  });
+
+  it("varies pace by the trek's own distance + gain (not a flat duration)", () => {
+    const short = paceEstimates(getSeedTrek("deoria-tal")!)[1].hours; // 6 km
+    const long = paceEstimates(getSeedTrek("roopkund")!)[1].hours; // 53 km, multi-day
+    expect(short).not.toBe(long);
+    // Distance drives day count: Milam (118 km) needs more days than Roopkund (53 km).
+    expect(estimateTrekDays(getSeedTrek("milam-glacier")!)).toBeGreaterThan(
+      estimateTrekDays(getSeedTrek("roopkund")!),
+    );
   });
 
   it("scores travel efficiency + worth-it within range, with a verdict and reasons", () => {
