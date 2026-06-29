@@ -178,6 +178,22 @@ export const TrekSchema = z.object({
   description: z.string().default(""),
   // Curated hero image (a verified landmark photo); null → live fallback.
   photoUrl: z.string().url().nullable().default(null),
+  // A pool of REAL, CC-licensed photos OF THIS TREK (Openverse + Commons
+  // geosearch), distributed across the trail steps + light/wildlife band. Each
+  // carries attribution (creator + license + source) so credit can be shown. No
+  // representative/stand-in imagery — an empty pool means the trek shows no step
+  // photos rather than a generic one.
+  photos: z
+    .array(
+      z.object({
+        url: z.string().url(),
+        title: z.string().default(""),
+        credit: z.string().default(""),
+        license: z.string().default(""),
+        sourceUrl: z.string().url().nullable().default(null),
+      }),
+    )
+    .default([]),
   // ── Trek DNA + rich page data ──
   dna: TrekDnaSchema,
   difficultyViz: TrekDifficultyVizSchema.nullable().default(null),
@@ -245,6 +261,7 @@ export const TrekSchema = z.object({
   embedding: z.array(z.number()).nullable().default(null),
 });
 export type Trek = z.infer<typeof TrekSchema>;
+export type TrekPhoto = Trek["photos"][number];
 
 // ── Query intent (parsed from natural language) ──────────────────────────────
 // The structured shape the recommender re-ranks on. `dna` holds only the

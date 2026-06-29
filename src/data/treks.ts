@@ -1,5 +1,6 @@
 import type { z } from "zod";
 import { TrekSchema, type Trek, type TrekDna } from "@/lib/trek/schema";
+import { TREK_PHOTOS } from "./trek-photos";
 
 // ── Trek Knowledge Graph seed corpus ─────────────────────────────────────────
 // ~20 fully-attributed treks (upgrading the curated trail backbone in
@@ -3971,7 +3972,11 @@ const HERO_IMAGE: Record<string, string> = {
 };
 
 export const treks: Trek[] = raw.map((t) =>
-  TrekSchema.parse({ ...t, photoUrl: t.photoUrl ?? HERO_IMAGE[t.slug] ?? null }),
+  TrekSchema.parse({
+    ...t,
+    photoUrl: t.photoUrl ?? HERO_IMAGE[t.slug] ?? null,
+    photos: TREK_PHOTOS[t.slug] ?? [],
+  }),
 );
 
 export const trekBySlug: Map<string, Trek> = new Map(treks.map((t) => [t.slug, t]));
