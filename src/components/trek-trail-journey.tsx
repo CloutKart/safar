@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { ElevationPoint } from "@/lib/trek/enrich";
 import type { TrekPhoto } from "@/lib/trek/schema";
 import { creditName } from "@/lib/trek/photo-pool";
@@ -62,6 +62,40 @@ export function TrekTrailJourney({
   const [activeKm, setActiveKm] = useState<number>(steps[0]?.km ?? 0);
   const activeIdx = nearestStep(steps, activeKm);
 
+  // Parallax: each photo is an over-sized layer translated against scroll, so the
+  // image pans within its frame as the step moves through the viewport (depth on
+  // any aspect ratio, not just tall photos). Skipped under reduced-motion.
+  const photoRefs = useRef<Array<HTMLElement | null>>([]);
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+    let raf = 0;
+    const update = () => {
+      raf = 0;
+      const vh = window.innerHeight;
+      for (const img of photoRefs.current) {
+        const frame = img?.parentElement;
+        if (!img || !frame) continue;
+        const r = frame.getBoundingClientRect();
+        if (r.bottom < -80 || r.top > vh + 80) continue; // offscreen
+        const p = (r.top + r.height / 2) / vh; // 1 = entering at bottom, 0 = leaving at top
+        const shift = (0.5 - p) * r.height * 0.26; // stays within the layer's 15% overscan
+        img.style.transform = `translate3d(0, ${shift.toFixed(1)}px, 0)`;
+      }
+    };
+    const onScroll = () => {
+      if (!raf) raf = requestAnimationFrame(update);
+    };
+    update();
+    window.addEventListener("scroll", onScroll, { passive: true });
+    window.addEventListener("resize", onScroll, { passive: true });
+    return () => {
+      window.removeEventListener("scroll", onScroll);
+      window.removeEventListener("resize", onScroll);
+      if (raf) cancelAnimationFrame(raf);
+    };
+  }, [steps]);
+
   return (
     <div className="trek-journey">
       {points.length > 1 && (
@@ -79,12 +113,16 @@ export function TrekTrailJourney({
             tabIndex={0}
           >
             {s.photo && (
-              <span
-                className="tl-photo"
-                style={{ backgroundImage: `url("${s.photo.url.replaceAll('"', "%22")}")` }}
-                role="img"
-                aria-label={s.photo.title || s.label}
-              >
+              <span className="tl-photo">
+                <span
+                  className="tl-photo-img"
+                  ref={(el) => {
+                    photoRefs.current[i] = el;
+                  }}
+                  style={{ backgroundImage: `url("${s.photo.url.replaceAll('"', "%22")}")` }}
+                  role="img"
+                  aria-label={s.photo.title || s.label}
+                />
                 <PhotoCredit photo={s.photo} />
               </span>
             )}
