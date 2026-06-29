@@ -80,11 +80,37 @@ function landmarkQueries(trek: (typeof treks)[number]): string[] {
   return out;
 }
 
+// Extra queries for famous treks whose photos hide under sub-feature names
+// (individual lakes, peaks, viewpoints) rather than the trek's own name.
+const SUPPLEMENTAL: Record<string, string[]> = {
+  "kashmir-great-lakes": ["Vishansar Lake", "Gangbal Lake", "Gadsar Lake", "Nundkol Lake", "Satsar Kashmir"],
+  "sandakphu-phalut": ["Sandakphu", "Kanchenjunga from Sandakphu", "Sleeping Buddha Himalaya", "Phalut"],
+  "goecha-la": ["Goecha La", "Dzongri Sikkim", "Kanchenjunga Goecha La", "Samiti Lake"],
+  "stok-kangri": ["Stok Kangri", "Stok Kangri summit Ladakh"],
+  "markha-valley-trek": ["Markha Valley", "Kang Yatse", "Nimaling Ladakh"],
+  "valley-of-flowers": ["Valley of Flowers National Park", "Hemkund Sahib", "Pushpawati valley"],
+  "kuari-pass": ["Gorson Bugyal", "Nanda Devi from Kuari Pass", "Auli Uttarakhand"],
+  "dzukou-valley": ["Dzukou Valley", "Japfu Peak", "Dzukou lily"],
+  "kumara-parvatha": ["Kumara Parvatha", "Pushpagiri Karnataka", "Kukke Subramanya"],
+  "tirthan-valley": ["Tirthan Valley", "Great Himalayan National Park", "Jalori Pass"],
+  "kafni-glacier": ["Kafni Glacier", "Pindari Khati", "Dwali Uttarakhand"],
+  "milam-glacier": ["Milam Glacier", "Munsiyari", "Nanda Devi East"],
+  "gangabal-lakes": ["Gangbal Lake", "Mount Harmukh", "Naranag Kashmir"],
+  "madmaheshwar": ["Madhyamaheshwar", "Madmaheshwar temple", "Chaukhamba Uttarakhand"],
+  "pangarchulla": ["Pangarchulla Peak", "Khullara Uttarakhand", "Kuari Pass Auli"],
+  "panchachuli-base-camp": ["Panchachuli", "Panchachuli peaks Munsiyari", "Darma valley"],
+  "miyar-valley": ["Miyar Valley", "Lahaul Spiti landscape", "Kang La Himachal"],
+};
+
 async function poolFor(trek: (typeof treks)[number]): Promise<Photo[]> {
   // Multi-word trek names are specific enough on their own (good recall); single-
   // name landmarks get the state appended to fight same-name collisions. NOISE +
   // the species/reservoir filter handles the wrong-place / macro cases.
-  const queries = [trek.name, ...landmarkQueries(trek).map((q) => `${q} ${trek.state}`)];
+  const queries = [
+    trek.name,
+    ...landmarkQueries(trek).map((q) => `${q} ${trek.state}`),
+    ...(SUPPLEMENTAL[trek.slug] ?? []),
+  ];
   const byUrl = new Map<string, Photo>();
   const byTitle = new Set<string>();
   for (const q of queries) {
@@ -105,18 +131,37 @@ async function main(): Promise<void> {
   const args = process.argv.slice(2);
   const limitArg = args.indexOf("--limit");
   const limit = limitArg >= 0 ? Number(args[limitArg + 1]) : Infinity;
+  // --merge keeps each trek's already-baked pool and only tops up the thin/empty
+  // ones (named-feature queries for famous treks whose photos hide under
+  // sub-feature names), so a re-run never regresses a good pool.
+  const merge = args.includes("--merge");
   const list = treks.slice(0, limit);
 
   const out: Record<string, Photo[]> = {};
   let withPhotos = 0;
   for (const trek of list) {
+    const existing = merge ? (trek.photos as Photo[]) : [];
+    if (existing.length >= 6) {
+      out[trek.slug] = existing;
+      withPhotos++;
+      console.log(`• ${trek.name} … ${existing.length} (kept)`);
+      continue;
+    }
     process.stdout.write(`• ${trek.name} … `);
-    const pool = await poolFor(trek);
-    if (pool.length > 0) {
-      out[trek.slug] = pool;
+    const fresh = await poolFor(trek);
+    const merged = [...existing];
+    const urls = new Set(existing.map((p) => p.url));
+    for (const p of fresh) {
+      if (!urls.has(p.url) && merged.length < 6) {
+        merged.push(p);
+        urls.add(p.url);
+      }
+    }
+    if (merged.length > 0) {
+      out[trek.slug] = merged;
       withPhotos++;
     }
-    console.log(`${pool.length} photo(s)`);
+    console.log(`${existing.length}→${merged.length} photo(s)`);
   }
 
   const body = Object.entries(out)

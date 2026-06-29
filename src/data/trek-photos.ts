@@ -646,6 +646,50 @@ export const TREK_PHOTOS: Record<string, TrekPhoto[]> = {
       "sourceUrl": "https://www.flickr.com/photos/44124370018@N01/51773690275"
     }
   ],
+  "miyar-valley": [
+    {
+      "url": "https://live.staticflickr.com/3205/3124437046_2d1acb4968.jpg",
+      "title": "rohtang pass, lahaul",
+      "credit": "nevil zaveri (thank you for 20+M views:)",
+      "license": "CC BY 2.0",
+      "sourceUrl": "https://www.flickr.com/photos/43109416@N00/3124437046"
+    },
+    {
+      "url": "https://live.staticflickr.com/3266/3116143340_e240d4efc3_b.jpg",
+      "title": "drizzling in trans-himalaya - 360° panorama, losar spiti",
+      "credit": "nevil zaveri (thank you for 20+M views:)",
+      "license": "CC BY 2.0",
+      "sourceUrl": "https://www.flickr.com/photos/43109416@N00/3116143340"
+    },
+    {
+      "url": "https://live.staticflickr.com/3240/3135509444_bbd8333cee_b.jpg",
+      "title": "halt, gramphu",
+      "credit": "nevil zaveri (thank you for 20+M views:)",
+      "license": "CC BY 2.0",
+      "sourceUrl": "https://www.flickr.com/photos/43109416@N00/3135509444"
+    },
+    {
+      "url": "https://live.staticflickr.com/65535/48990390468_4e2b8dd1ac_b.jpg",
+      "title": "Markha River",
+      "credit": "Chris Hunkeler",
+      "license": "CC BY-SA 2.0",
+      "sourceUrl": "https://www.flickr.com/photos/14913305@N00/48990390468"
+    },
+    {
+      "url": "https://live.staticflickr.com/3182/3116143336_5ef983abb8_b.jpg",
+      "title": "trans-himalaya - 180° panorama, gete spiti",
+      "credit": "nevil zaveri (thank you for 20+M views:)",
+      "license": "CC BY 2.0",
+      "sourceUrl": "https://www.flickr.com/photos/43109416@N00/3116143336"
+    },
+    {
+      "url": "https://live.staticflickr.com/3116/3131070346_6f19256879.jpg",
+      "title": "close to heaven - closer to hell, manali",
+      "credit": "nevil zaveri (thank you for 20+M views:)",
+      "license": "CC BY 2.0",
+      "sourceUrl": "https://www.flickr.com/photos/43109416@N00/3131070346"
+    }
+  ],
   "kang-la-pass": [
     {
       "url": "https://upload.wikimedia.org/wikipedia/commons/b/b5/Kongmaru_La_Pass_View_%2849043449806%29.jpg",
@@ -759,6 +803,41 @@ export const TREK_PHOTOS: Record<string, TrekPhoto[]> = {
       "credit": "Original: Samudra Bikash Hazarika Derivative work: UnpetitproleX",
       "license": "CC BY-SA 4.0",
       "sourceUrl": "https://commons.wikimedia.org/w/index.php?curid=167262514"
+    },
+    {
+      "url": "https://upload.wikimedia.org/wikipedia/commons/8/86/The_breathtaking_beauty_of_the_Dzukou_Valley.jpg",
+      "title": "The breathtaking beauty of the Dzukou Valley",
+      "credit": "Inu Etc",
+      "license": "CC BY-SA 4.0",
+      "sourceUrl": "https://commons.wikimedia.org/w/index.php?curid=124615175"
+    },
+    {
+      "url": "https://upload.wikimedia.org/wikipedia/commons/9/94/Dzukou_valley_in_the_Nagaland-Manipur_border.jpg",
+      "title": "Dzukou valley in the Nagaland-Manipur border",
+      "credit": "SeethaG",
+      "license": "CC BY-SA 4.0",
+      "sourceUrl": "https://commons.wikimedia.org/w/index.php?curid=49636892"
+    },
+    {
+      "url": "https://upload.wikimedia.org/wikipedia/commons/d/da/Inu_Etc_in_Dzukou_Valley%2C_Nagaland.jpg",
+      "title": "Inu Etc in Dzukou Valley, Nagaland",
+      "credit": "Inu Etc",
+      "license": "CC BY 4.0",
+      "sourceUrl": "https://commons.wikimedia.org/w/index.php?curid=148727260"
+    },
+    {
+      "url": "https://upload.wikimedia.org/wikipedia/commons/f/f7/Breathtaking_beauty_of_Dzukou_Valley_in_Manipur-Nagaland_border.jpg",
+      "title": "Breathtaking beauty of Dzukou Valley in Manipur-Nagaland border",
+      "credit": "Samudra bikash hazarika",
+      "license": "CC BY-SA 4.0",
+      "sourceUrl": "https://commons.wikimedia.org/w/index.php?curid=60542442"
+    },
+    {
+      "url": "https://upload.wikimedia.org/wikipedia/commons/d/d7/The_Dzukou_Valley.JPG",
+      "title": "The Dzukou Valley",
+      "credit": "Mongyamba",
+      "license": "CC BY-SA 3.0",
+      "sourceUrl": "https://commons.wikimedia.org/w/index.php?curid=4295809"
     }
   ],
   "kudremukh": [
@@ -812,6 +891,85 @@ export const TREK_PHOTOS: Record<string, TrekPhoto[]> = {
       "credit": "bishii",
       "license": "CC BY-SA 2.0",
       "sourceUrl": "https://www.flickr.com/photos/9976253@N05/2121495157"
+    },
+    {
+      "url": "https://live.staticflickr.com/4064/4308496674_3a87075d91_b.jpg",
+      "title": "Bheemana Bande- kumara parvatha",
+      "credit": "Neon-Clix",
+      "license": "CC BY 2.0",
+      "sourceUrl": "https://www.flickr.com/photos/45099860@N05/4308496674"
+    },
+    {
+      "url": "https://live.staticflickr.com/4050/4308496064_71ed418244_b.jpg",
+      "title": "Beautiful Sunset - Bhattara mane- kumara parvatha",
+      "credit": "Neon-Clix",
+      "license": "CC BY 2.0",
+      "sourceUrl": "https://www.flickr.com/photos/45099860@N05/4308496064"
+    },
+    {
+      "url": "https://upload.wikimedia.org/wikipedia/commons/8/8e/Final_stretch_of_Pushpagiri_Karnataka_India.jpg",
+      "title": "Final stretch of Pushpagiri Karnataka India",
+      "credit": "Photos Worldwide",
+      "license": "CC0 1.0",
+      "sourceUrl": "https://commons.wikimedia.org/w/index.php?curid=104610822"
+    },
+    {
+      "url": "https://upload.wikimedia.org/wikipedia/commons/1/1a/Trek_Pushpagiri_Karnataka_India.jpg",
+      "title": "Trek Pushpagiri Karnataka India",
+      "credit": "Photos Worldwide",
+      "license": "CC0 1.0",
+      "sourceUrl": "https://commons.wikimedia.org/w/index.php?curid=104610825"
+    },
+    {
+      "url": "https://upload.wikimedia.org/wikipedia/commons/7/7f/Tents_on_a_view_point_in_Pushpagiri_wildlife_sanctuary.jpg",
+      "title": "Tents on a view point in Pushpagiri wildlife sanctuary",
+      "credit": "psubhashish",
+      "license": "CC BY-SA 3.0",
+      "sourceUrl": "https://commons.wikimedia.org/w/index.php?curid=32050408"
+    }
+  ],
+  "gangabal-lakes": [
+    {
+      "url": "https://upload.wikimedia.org/wikipedia/commons/c/cb/Horse_riding_near_Gangbal_Lake.JPG",
+      "title": "Horse riding near Gangbal Lake",
+      "credit": "Owais Khursheed",
+      "license": "CC BY-SA 4.0",
+      "sourceUrl": "https://commons.wikimedia.org/w/index.php?curid=37608583"
+    },
+    {
+      "url": "https://upload.wikimedia.org/wikipedia/commons/a/a5/Fishes_of_Gangbal_Lake.JPG",
+      "title": "Fishes of Gangbal Lake",
+      "credit": "Owais Khursheed",
+      "license": "CC BY-SA 4.0",
+      "sourceUrl": "https://commons.wikimedia.org/w/index.php?curid=37176091"
+    },
+    {
+      "url": "https://upload.wikimedia.org/wikipedia/commons/7/7f/Trekking_near_Gangbal_Lake.jpg",
+      "title": "Trekking near Gangbal Lake",
+      "credit": "Taabishm2",
+      "license": "CC BY-SA 4.0",
+      "sourceUrl": "https://commons.wikimedia.org/w/index.php?curid=62381707"
+    },
+    {
+      "url": "https://upload.wikimedia.org/wikipedia/commons/4/4c/Gangbal_Lake%2C_Ganderbal.JPG",
+      "title": "Gangbal Lake, Ganderbal",
+      "credit": "Owais Khursheed",
+      "license": "CC BY-SA 4.0",
+      "sourceUrl": "https://commons.wikimedia.org/w/index.php?curid=37176083"
+    },
+    {
+      "url": "https://upload.wikimedia.org/wikipedia/commons/a/af/GangbalPanorama1.jpg",
+      "title": "GangbalPanorama1",
+      "credit": "Mohamad Talib Bhat",
+      "license": "CC BY-SA 3.0",
+      "sourceUrl": "https://commons.wikimedia.org/w/index.php?curid=78150286"
+    },
+    {
+      "url": "https://upload.wikimedia.org/wikipedia/commons/f/f2/Gangbal%2C_Kashmir.jpg",
+      "title": "Gangbal, Kashmir",
+      "credit": "Romesh Bhattacharji",
+      "license": "CC BY-SA 4.0",
+      "sourceUrl": "https://commons.wikimedia.org/w/index.php?curid=59472035"
     }
   ],
   "tirthan-valley": [
@@ -821,6 +979,41 @@ export const TREK_PHOTOS: Record<string, TrekPhoto[]> = {
       "credit": "Ankitwadhwa10",
       "license": "CC BY-SA 4.0",
       "sourceUrl": "https://commons.wikimedia.org/w/index.php?curid=49827519"
+    },
+    {
+      "url": "https://live.staticflickr.com/65535/52816325110_a51cef29fd_b.jpg",
+      "title": "Smoke envelopes Tirthan Valley",
+      "credit": "Nagarjun",
+      "license": "CC BY 2.0",
+      "sourceUrl": "https://www.flickr.com/photos/64924693@N00/52816325110"
+    },
+    {
+      "url": "https://upload.wikimedia.org/wikipedia/commons/0/05/Welcome_Gate_at_Larji_for_Sainj_and_Tirthan_Valleys%2C_Kullu_District%2C_Himachal_Pradesh.jpg",
+      "title": "Welcome Gate at Larji for Sainj and Tirthan Valleys, Kullu District, Himachal Pradesh",
+      "credit": "Rajani Gairshail",
+      "license": "CC BY-SA 4.0",
+      "sourceUrl": "https://commons.wikimedia.org/w/index.php?curid=184416943"
+    },
+    {
+      "url": "https://upload.wikimedia.org/wikipedia/commons/9/94/Tirthan_River_Tirthan_Valley_DSC00968.jpg",
+      "title": "Tirthan River Tirthan Valley DSC00968",
+      "credit": "Debashritaiitmandi",
+      "license": "CC BY-SA 4.0",
+      "sourceUrl": "https://commons.wikimedia.org/w/index.php?curid=103271417"
+    },
+    {
+      "url": "https://upload.wikimedia.org/wikipedia/commons/e/e0/Stone_arrangement_Tirthan_valley_DSC00755.jpg",
+      "title": "Stone arrangement Tirthan valley DSC00755",
+      "credit": "Debashritaiitmandi",
+      "license": "CC BY-SA 4.0",
+      "sourceUrl": "https://commons.wikimedia.org/w/index.php?curid=103269812"
+    },
+    {
+      "url": "https://upload.wikimedia.org/wikipedia/commons/8/8c/Cornus_capitata%2C_Tirthan_Valley%2C_Kullu_District%2C_Himachal_Pradesh_%28%E0%A4%AB%E0%A4%BE%E0%A4%97%E0%A5%81%29.jpg",
+      "title": "Cornus capitata, Tirthan Valley, Kullu District, Himachal Pradesh (फागु)",
+      "credit": "Ramwik",
+      "license": "CC BY-SA 3.0",
+      "sourceUrl": "https://commons.wikimedia.org/w/index.php?curid=49774485"
     }
   ],
   "phawngpui": [
@@ -962,6 +1155,34 @@ export const TREK_PHOTOS: Record<string, TrekPhoto[]> = {
       "credit": "Naresh Chandra",
       "license": "CC BY-SA 4.0",
       "sourceUrl": "https://commons.wikimedia.org/w/index.php?curid=60440392"
+    },
+    {
+      "url": "https://upload.wikimedia.org/wikipedia/commons/4/48/Acer_acuminatum_on_way_from_Govindghat_to_Gangria_at_Valley_of_Flowers_National_Park_-_during_LGFC_-_VOF_2019_%281%29.jpg",
+      "title": "Acer acuminatum on way from Govindghat to Gangria at Valley of Flowers National Park - during LGFC - VOF 2019 (1)",
+      "credit": "Vinayaraj",
+      "license": "CC BY-SA 4.0",
+      "sourceUrl": "https://commons.wikimedia.org/w/index.php?curid=85813908"
+    },
+    {
+      "url": "https://upload.wikimedia.org/wikipedia/commons/5/52/Valley_of_flowers_National_Park_22.JPG",
+      "title": "Valley of flowers National Park 22",
+      "credit": "Guptaele",
+      "license": "CC BY-SA 4.0",
+      "sourceUrl": "https://commons.wikimedia.org/w/index.php?curid=35662004"
+    },
+    {
+      "url": "https://upload.wikimedia.org/wikipedia/commons/f/f2/Argynnis_kamala_-_Common_Silverstripe_from_Valley_of_Flowers_National_Park_-_during_LGFC_-_VOF_2019_%2847%29.jpg",
+      "title": "Argynnis kamala - Common Silverstripe from Valley of Flowers National Park - during LGFC - VOF 2019 (47)",
+      "credit": "Vinayaraj",
+      "license": "CC BY-SA 4.0",
+      "sourceUrl": "https://commons.wikimedia.org/w/index.php?curid=88892116"
+    },
+    {
+      "url": "https://upload.wikimedia.org/wikipedia/commons/1/1e/Salix_denticulata_on_way_from_Govindghat_to_Gangria_at_Valley_of_Flowers_National_Park_-_during_LGFC_-_VOF_2019_%283%29.jpg",
+      "title": "Salix denticulata on way from Govindghat to Gangria at Valley of Flowers National Park - during LGFC - VOF 2019 (3)",
+      "credit": "Vinayaraj",
+      "license": "CC BY-SA 4.0",
+      "sourceUrl": "https://commons.wikimedia.org/w/index.php?curid=85815761"
     }
   ],
   "roopkund": [
@@ -1066,6 +1287,34 @@ export const TREK_PHOTOS: Record<string, TrekPhoto[]> = {
       "credit": "Bidhubhusan Patel",
       "license": "CC BY-SA 4.0",
       "sourceUrl": "https://commons.wikimedia.org/w/index.php?curid=49770099"
+    },
+    {
+      "url": "https://upload.wikimedia.org/wikipedia/commons/3/35/Hathi_Parbat_from_Gorson_Bugyal.jpg",
+      "title": "Hathi Parbat from Gorson Bugyal",
+      "credit": "Sumodm",
+      "license": "CC BY-SA 4.0",
+      "sourceUrl": "https://commons.wikimedia.org/w/index.php?curid=88009325"
+    },
+    {
+      "url": "https://upload.wikimedia.org/wikipedia/commons/a/ac/Gorson_Bugyal.jpg",
+      "title": "Gorson Bugyal",
+      "credit": "Vaibhav78545",
+      "license": "CC BY-SA 4.0",
+      "sourceUrl": "https://commons.wikimedia.org/w/index.php?curid=98579122"
+    },
+    {
+      "url": "https://upload.wikimedia.org/wikipedia/commons/f/f5/Nilgiri_Parbat_From_Gorson_Bugyal.jpg",
+      "title": "Nilgiri Parbat From Gorson Bugyal",
+      "credit": "Sumodm",
+      "license": "CC BY-SA 4.0",
+      "sourceUrl": "https://commons.wikimedia.org/w/index.php?curid=88008679"
+    },
+    {
+      "url": "https://upload.wikimedia.org/wikipedia/commons/8/8f/Nanda_Devi_Parvat.jpg",
+      "title": "Nanda Devi Parvat",
+      "credit": "Catherine Lunaa",
+      "license": "CC BY-SA 4.0",
+      "sourceUrl": "https://commons.wikimedia.org/w/index.php?curid=131772494"
     }
   ],
   "dayara-bugyal": [
@@ -1267,6 +1516,59 @@ export const TREK_PHOTOS: Record<string, TrekPhoto[]> = {
       "sourceUrl": "https://www.flickr.com/photos/25966716@N00/264162719"
     }
   ],
+  "madmaheshwar": [
+    {
+      "url": "https://upload.wikimedia.org/wikipedia/commons/5/5f/Madhyamaheshwar_Temple%2C_Uttarakhand.JPG",
+      "title": "Madhyamaheshwar Temple, Uttarakhand",
+      "credit": "Bodhisattwa",
+      "license": "CC BY-SA 4.0",
+      "sourceUrl": "https://commons.wikimedia.org/w/index.php?curid=36374263"
+    },
+    {
+      "url": "https://upload.wikimedia.org/wikipedia/commons/c/c4/Chaukhamba_from_Madhyamaheshwar_%28Old%29.jpg",
+      "title": "Chaukhamba from Madhyamaheshwar (Old)",
+      "credit": "Ishwari Rai",
+      "license": "CC BY-SA 3.0",
+      "sourceUrl": "https://commons.wikimedia.org/w/index.php?curid=15507349"
+    },
+    {
+      "url": "https://upload.wikimedia.org/wikipedia/commons/9/9b/Mt_Mandani_and_Chaukhamba_with_reflection_at_Boodha_Madhyamaheshwar_3500m_Photo_by_Sumita_Roy.jpg",
+      "title": "Mt Mandani and Chaukhamba with reflection at Boodha Madhyamaheshwar 3500m Photo by Sumita Roy",
+      "credit": "Sumita Roy Dutta",
+      "license": "CC BY-SA 4.0",
+      "sourceUrl": "https://commons.wikimedia.org/w/index.php?curid=43376429"
+    },
+    {
+      "url": "https://upload.wikimedia.org/wikipedia/commons/0/09/Mount_Mandani_viewed_from_Gaundar_to_Madhyamaheshwar_Trail.JPG",
+      "title": "Mount Mandani viewed from Gaundar to Madhyamaheshwar Trail",
+      "credit": "Bodhisattwa",
+      "license": "CC BY-SA 4.0",
+      "sourceUrl": "https://commons.wikimedia.org/w/index.php?curid=36365278"
+    },
+    {
+      "url": "https://upload.wikimedia.org/wikipedia/commons/c/ce/Chaukhamba_at_Boodha_Madhyamaheshwar.jpg",
+      "title": "Chaukhamba at Boodha Madhyamaheshwar",
+      "credit": "Abhishek.ghosh1984",
+      "license": "CC BY-SA 4.0",
+      "sourceUrl": "https://commons.wikimedia.org/w/index.php?curid=49314980"
+    },
+    {
+      "url": "https://upload.wikimedia.org/wikipedia/commons/b/b7/Reflection_of_Mount_Mandani_on_the_frozen_taal_at_Buda_Madhyamaheshwar_top.JPG",
+      "title": "Reflection of Mount Mandani on the frozen taal at Buda Madhyamaheshwar top",
+      "credit": "Bodhisattwa",
+      "license": "CC BY-SA 4.0",
+      "sourceUrl": "https://commons.wikimedia.org/w/index.php?curid=36467084"
+    }
+  ],
+  "pangarchulla": [
+    {
+      "url": "https://upload.wikimedia.org/wikipedia/commons/8/87/Pangarchulla_Peak.jpg",
+      "title": "Pangarchulla Peak",
+      "credit": "ShwethaSulegai",
+      "license": "CC BY-SA 4.0",
+      "sourceUrl": "https://commons.wikimedia.org/w/index.php?curid=67127843"
+    }
+  ],
   "pindari-glacier": [
     {
       "url": "https://upload.wikimedia.org/wikipedia/commons/1/18/PINDARI_GLACIERMAPENGLISH_made_by_Sumita_Roy.png",
@@ -1318,6 +1620,85 @@ export const TREK_PHOTOS: Record<string, TrekPhoto[]> = {
       "credit": "Sumita Roy Dutta",
       "license": "CC BY-SA 4.0",
       "sourceUrl": "https://commons.wikimedia.org/w/index.php?curid=42800612"
+    },
+    {
+      "url": "https://upload.wikimedia.org/wikipedia/commons/e/e6/Kafni_glacier.jpg",
+      "title": "Kafni glacier",
+      "credit": "Anuragkjain at English Wikipedia",
+      "license": "CC BY 3.0",
+      "sourceUrl": "https://commons.wikimedia.org/w/index.php?curid=34162152"
+    },
+    {
+      "url": "https://upload.wikimedia.org/wikipedia/commons/a/ab/Pindar_river.jpg",
+      "title": "Pindar river",
+      "credit": "Harshit SR",
+      "license": "CC BY-SA 4.0",
+      "sourceUrl": "https://commons.wikimedia.org/w/index.php?curid=149532414"
+    },
+    {
+      "url": "https://upload.wikimedia.org/wikipedia/commons/4/4b/Parmelia_pindarensis_D_D_Awasthi_%26_Singh_nmnhbotany_2123964_NMNH-00068960-000001.jpg",
+      "title": "Parmelia pindarensis D D Awasthi & Singh nmnhbotany 2123964 NMNH-00068960-000001",
+      "credit": "National Museum of Natural History",
+      "license": "CC0 1.0",
+      "sourceUrl": "https://commons.wikimedia.org/w/index.php?curid=142316060"
+    },
+    {
+      "url": "https://upload.wikimedia.org/wikipedia/commons/f/f9/Pindari_river_from_Dwali%2C_Uttarakhand%2C_India.jpg",
+      "title": "Pindari river from Dwali, Uttarakhand, India",
+      "credit": "Yann (talk)",
+      "license": "CC BY-SA 4.0",
+      "sourceUrl": "https://commons.wikimedia.org/w/index.php?curid=16955627"
+    },
+    {
+      "url": "https://upload.wikimedia.org/wikipedia/commons/8/8b/Bridge_on_the_Pindari_river_near_Dwali%2C_Uttarakhand%2C_India.jpg",
+      "title": "Bridge on the Pindari river near Dwali, Uttarakhand, India",
+      "credit": "Yann (talk)",
+      "license": "CC BY-SA 4.0",
+      "sourceUrl": "https://commons.wikimedia.org/w/index.php?curid=16963709"
+    }
+  ],
+  "milam-glacier": [
+    {
+      "url": "https://upload.wikimedia.org/wikipedia/commons/1/1b/RN015_Vanessa_indica.jpg",
+      "title": "RN015 Vanessa indica",
+      "credit": "No machine-readable author provided. Nature Loader assumed (based on copyright c",
+      "license": "CC BY-SA 3.0",
+      "sourceUrl": "https://commons.wikimedia.org/w/index.php?curid=732309"
+    },
+    {
+      "url": "https://live.staticflickr.com/217/517612947_e52559252a_b.jpg",
+      "title": "Looks to Kill",
+      "credit": "feelfree82",
+      "license": "CC BY 2.0",
+      "sourceUrl": "https://www.flickr.com/photos/83407406@N00/517612947"
+    },
+    {
+      "url": "https://live.staticflickr.com/3860/14401853494_7c746ebbe3_b.jpg",
+      "title": "Sunrise at Munsiyari",
+      "credit": "kg.abhi",
+      "license": "CC BY 2.0",
+      "sourceUrl": "https://www.flickr.com/photos/31518092@N04/14401853494"
+    },
+    {
+      "url": "https://upload.wikimedia.org/wikipedia/commons/4/4d/Helotidae_Munsiyari.jpg",
+      "title": "Helotidae Munsiyari",
+      "credit": "Shyamal",
+      "license": "CC BY 4.0",
+      "sourceUrl": "https://commons.wikimedia.org/w/index.php?curid=80604250"
+    },
+    {
+      "url": "https://live.staticflickr.com/3901/14547053363_3a5eafc601_b.jpg",
+      "title": "Sunrise at Munsiyari - I",
+      "credit": "kg.abhi",
+      "license": "CC BY 2.0",
+      "sourceUrl": "https://www.flickr.com/photos/31518092@N04/14547053363"
+    },
+    {
+      "url": "https://upload.wikimedia.org/wikipedia/commons/7/7b/Panchchuli_Peaks%2C_near_Munsiyari%2C_Uttarakhand.jpg",
+      "title": "Panchchuli Peaks, near Munsiyari, Uttarakhand",
+      "credit": "https://www.flickr.com/photos/73109955@N00/",
+      "license": "CC BY 2.0",
+      "sourceUrl": "https://commons.wikimedia.org/w/index.php?curid=6873418"
     }
   ],
   "khaliya-top": [
@@ -1334,6 +1715,50 @@ export const TREK_PHOTOS: Record<string, TrekPhoto[]> = {
       "credit": "Shyamal L.",
       "license": "CC BY-SA 3.0",
       "sourceUrl": "https://commons.wikimedia.org/w/index.php?curid=49083096"
+    }
+  ],
+  "panchachuli-base-camp": [
+    {
+      "url": "https://upload.wikimedia.org/wikipedia/commons/b/bd/Panchachuli_and_nearby_peaks.jpg",
+      "title": "Panchachuli and nearby peaks",
+      "credit": "Brindha.nagarajan",
+      "license": "CC BY-SA 4.0",
+      "sourceUrl": "https://commons.wikimedia.org/w/index.php?curid=49792812"
+    },
+    {
+      "url": "https://upload.wikimedia.org/wikipedia/commons/c/cc/Panchachuli.JPG",
+      "title": "Panchachuli",
+      "credit": "Spatni2",
+      "license": "CC BY-SA 3.0",
+      "sourceUrl": "https://commons.wikimedia.org/w/index.php?curid=23928689"
+    },
+    {
+      "url": "https://upload.wikimedia.org/wikipedia/commons/1/1b/Panchachuli_Pithauragarh.jpg",
+      "title": "Panchachuli Pithauragarh",
+      "credit": "Rohit Gosain",
+      "license": "CC BY-SA 4.0",
+      "sourceUrl": "https://commons.wikimedia.org/w/index.php?curid=71194110"
+    },
+    {
+      "url": "https://upload.wikimedia.org/wikipedia/commons/0/01/%22Didihat_Town_and_Panchachuli_peaks_in_the_background.jpg%22.jpg",
+      "title": "'Didihat Town and Panchachuli peaks in the background.jpg'",
+      "credit": "Khushwant Kafaliya",
+      "license": "CC BY-SA 4.0",
+      "sourceUrl": "https://commons.wikimedia.org/w/index.php?curid=105358064"
+    },
+    {
+      "url": "https://upload.wikimedia.org/wikipedia/commons/d/dc/Panchachuli_from_Darma_Valley.jpg",
+      "title": "Panchachuli from Darma Valley",
+      "credit": "Kuldeep vittan",
+      "license": "CC BY-SA 4.0",
+      "sourceUrl": "https://commons.wikimedia.org/w/index.php?curid=90096924"
+    },
+    {
+      "url": "https://upload.wikimedia.org/wikipedia/commons/7/74/Panchachuli_Trek%2C_in_Darma_Valley.jpg",
+      "title": "Panchachuli Trek, in Darma Valley",
+      "credit": "Kuldeep vittan",
+      "license": "CC BY-SA 4.0",
+      "sourceUrl": "https://commons.wikimedia.org/w/index.php?curid=90097051"
     }
   ],
 };
